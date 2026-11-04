@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "1072094421175",
+    "project_id": "vendix-53bd7",
+    "storage_bucket": "vendix-53bd7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1072094421175:android:5950df0e843f263689ad32",
+        "android_client_info": {
+          "package_name": "com.example.vendix"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1072094421175-8s50dtgbokqri72rtlsl4ms06rb32he3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.vendix",
+            "certificate_hash": "e2a31696f1d81b5e879c889009b92f368c92c863"
+          }
+        },
+        {
+          "client_id": "1072094421175-b9pe80lgr9r5g33oao2jb697po91plbq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBCzKXj2Hs4QLOptTU1NDqKaTNVqC0vBEk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1072094421175-b9pe80lgr9r5g33oao2jb697po91plbq.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1072094421175-82r7eb77g63abo31acbj8kfcb16e3v39.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.vendix"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
