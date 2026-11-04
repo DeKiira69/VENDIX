@@ -1,7 +1,34 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../models/prenda_model.dart';
 import '../../theme/app_theme.dart';
-import '../../data/datos_prueba.dart';
+
+class _ClienteData {
+  final String id;
+  final String nombre;
+  final String telefono;
+  final String direccion;
+  final int prendas;
+  final double totalComprado;
+  final double totalPagado;
+  final double deuda;
+  final List<Map<String, dynamic>> compras;
+  final List<Map<String, dynamic>> pagos;
+
+  _ClienteData({
+    required this.id,
+    required this.nombre,
+    required this.telefono,
+    required this.direccion,
+    required this.prendas,
+    required this.totalComprado,
+    required this.totalPagado,
+    required this.deuda,
+    required this.compras,
+    required this.pagos,
+  });
+}
 
 class ClientsScreen extends StatefulWidget {
   const ClientsScreen({super.key});
@@ -11,6 +38,7 @@ class ClientsScreen extends StatefulWidget {
 }
 
 class _ClientsScreenState extends State<ClientsScreen> {
+  final _db = FirebaseFirestore.instance;
   final _buscarController = TextEditingController();
   String _filtro = 'Todas';
 
@@ -22,209 +50,296 @@ class _ClientsScreenState extends State<ClientsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final busqueda = _buscarController.text.toLowerCase();
-
-    final filtrados = clientesDemo.where((c) {
-      final coincide =
-          c.nombre.toLowerCase().contains(busqueda) ||
-          c.telefono.toLowerCase().contains(busqueda) ||
-          c.direccion.toLowerCase().contains(busqueda);
-
-      final coincideFiltro =
-          _filtro == 'Todas' ||
-          (_filtro == 'Con saldo' && c.deuda > 0) ||
-          (_filtro == 'Al día' && c.deuda == 0);
-
-      return coincide && coincideFiltro;
-    }).toList();
-
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
-        child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 15, 20, 12),
-            child: Row(
-              children: [
-                if (Navigator.canPop(context)) ...[
-                  InkWell(
-                    onTap: () => Navigator.pop(context),
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF0E9FC),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.arrow_back_ios_new,
-                        size: 16,
-                        color: AppTheme.violet,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                ],
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${clientesDemo.length} REGISTRADAS',
-                        style: const TextStyle(
-                          color: AppTheme.violet,
-                          fontSize: 10,
-                          letterSpacing: 1,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Clientes',
-                        style: TextStyle(
-                          fontSize: 23,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.dark,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                FilledButton.icon(
-                  onPressed: _nuevoCliente,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Nueva'),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: TextField(
-              controller: _buscarController,
-              onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
-                hintText: 'Buscar por nombre, teléfono o dirección',
-                prefixIcon: Icon(Icons.search),
-              ),
-            ),
-          ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-            child: Row(
-              children: ['Todas', 'Con saldo', 'Al día'].map((filtro) {
-                final activo = filtro == _filtro;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 7),
-                  child: ChoiceChip(
-                    label: Text(filtro),
-                    selected: activo,
-                    onSelected: (_) => setState(() => _filtro = filtro),
-                    selectedColor: AppTheme.violet,
-                    labelStyle: TextStyle(
-                      color: activo ? Colors.white : AppTheme.dark,
-                      fontSize: 11,
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          Expanded(
-            child: filtrados.isEmpty
-                ? const Center(child: Text('No se encontraron clientes'))
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 15),
-                    itemCount: filtrados.length,
-                    itemBuilder: (context, index) {
-                      final cliente = filtrados[index];
-                      final iniciales = cliente.nombre
-                          .trim()
-                          .split(RegExp(r'\s+'))
-                          .take(2)
-                          .map((p) => p[0])
-                          .join();
+        child: StreamBuilder<QuerySnapshot>(
+          stream: _db.collection('clientes').snapshots(),
+          builder: (context, snapClientes) {
+            final docsClientes = snapClientes.data?.docs ?? [];
 
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 9),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          border: Border.all(color: AppTheme.border),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 5,
-                          ),
-                          leading: CircleAvatar(
-                            backgroundColor: const Color(0xFFFFEEF6),
-                            child: Text(
-                              iniciales,
-                              style: const TextStyle(
-                                color: AppTheme.violet,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          title: Text(
-                            cliente.nombre,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          subtitle: Text(
-                            '${cliente.telefono}\n'
-                            '${cliente.prendas} prendas registradas',
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: AppTheme.muted,
-                            ),
-                          ),
-                          isThreeLine: true,
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
+            return StreamBuilder<QuerySnapshot>(
+              stream: _db.collection('compras').snapshots(),
+              builder: (context, snapCompras) {
+                final docsCompras = snapCompras.data?.docs ?? [];
+
+                return StreamBuilder<QuerySnapshot>(
+                  stream: _db.collection('pagos').snapshots(),
+                  builder: (context, snapPagos) {
+                    final docsPagos = snapPagos.data?.docs ?? [];
+
+                    // Organizar compras por clienteId
+                    final mapCompras = <String, List<Map<String, dynamic>>>{};
+                    for (final doc in docsCompras) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final cId = data['clienteId']?.toString() ?? '';
+                      if (cId.isNotEmpty) {
+                        mapCompras.putIfAbsent(cId, () => []).add({
+                          'id': doc.id,
+                          ...data,
+                        });
+                      }
+                    }
+
+                    // Organizar pagos por clienteId
+                    final mapPagos = <String, List<Map<String, dynamic>>>{};
+                    for (final doc in docsPagos) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final cId = data['clienteId']?.toString() ?? '';
+                      if (cId.isNotEmpty) {
+                        mapPagos.putIfAbsent(cId, () => []).add({
+                          'id': doc.id,
+                          ...data,
+                        });
+                      }
+                    }
+
+                    // Mapear a _ClienteData
+                    final listaClientes = docsClientes.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final id = doc.id;
+                      final nombre = data['nombre']?.toString() ?? 'Sin nombre';
+                      final telefono = data['telefono']?.toString() ?? '';
+                      final direccion = data['direccion']?.toString() ?? '';
+
+                      final compras = mapCompras[id] ?? [];
+                      final pagos = mapPagos[id] ?? [];
+
+                      int totalPrendas = 0;
+                      double totalComprado = 0;
+                      for (final c in compras) {
+                        final cant = (c['cantidad'] is num) ? (c['cantidad'] as num).toInt() : 1;
+                        final sub = (c['total'] ?? c['subtotal'] ?? 0).toDouble();
+                        totalPrendas += cant;
+                        totalComprado += sub;
+                      }
+
+                      double totalPagado = 0;
+                      for (final p in pagos) {
+                        totalPagado += (p['monto'] ?? 0).toDouble();
+                      }
+
+                      final saldo = totalComprado - totalPagado;
+                      final deuda = saldo > 0.001 ? saldo : 0.0;
+
+                      return _ClienteData(
+                        id: id,
+                        nombre: nombre,
+                        telefono: telefono,
+                        direccion: direccion,
+                        prendas: totalPrendas,
+                        totalComprado: totalComprado,
+                        totalPagado: totalPagado,
+                        deuda: deuda,
+                        compras: compras,
+                        pagos: pagos,
+                      );
+                    }).toList();
+
+                    // Filtrar por texto y por saldo
+                    final busqueda = _buscarController.text.trim().toLowerCase();
+                    final filtrados = listaClientes.where((c) {
+                      final coincide = c.nombre.toLowerCase().contains(busqueda) ||
+                          c.telefono.toLowerCase().contains(busqueda) ||
+                          c.direccion.toLowerCase().contains(busqueda);
+
+                      final coincideFiltro = _filtro == 'Todas' ||
+                          (_filtro == 'Con saldo' && c.deuda > 0) ||
+                          (_filtro == 'Al día' && c.deuda == 0);
+
+                      return coincide && coincideFiltro;
+                    }).toList();
+
+                    return Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 15, 20, 12),
+                          child: Row(
                             children: [
-                              Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    cliente.deuda <= 0 ? 'AL DÍA' : 'DEBE',
-                                    style: const TextStyle(
-                                      fontSize: 8,
-                                      color: AppTheme.muted,
+                              if (Navigator.canPop(context)) ...[
+                                InkWell(
+                                  onTap: () => Navigator.pop(context),
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF0E9FC),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.arrow_back_ios_new,
+                                      size: 16,
+                                      color: AppTheme.violet,
                                     ),
                                   ),
-                                  Text(
-                                    '\$${cliente.deuda.toStringAsFixed(2)}',
-                                    style: TextStyle(
-                                      color: cliente.deuda <= 0
-                                          ? AppTheme.green
-                                          : AppTheme.orange,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
+                                ),
+                                const SizedBox(width: 12),
+                              ],
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${listaClientes.length} REGISTRADAS',
+                                      style: const TextStyle(
+                                        color: AppTheme.violet,
+                                        fontSize: 10,
+                                        letterSpacing: 1,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                      'Clientes',
+                                      style: TextStyle(
+                                        fontSize: 23,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppTheme.dark,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              const SizedBox(width: 5),
-                              const Icon(Icons.chevron_right, size: 19),
+                              FilledButton.icon(
+                                onPressed: _nuevoCliente,
+                                icon: const Icon(Icons.add, size: 18),
+                                label: const Text('Nueva'),
+                              ),
                             ],
                           ),
-                          onTap: () => _resumenCliente(cliente),
                         ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: TextField(
+                            controller: _buscarController,
+                            onChanged: (_) => setState(() {}),
+                            decoration: const InputDecoration(
+                              hintText: 'Buscar por nombre, teléfono o dirección',
+                              prefixIcon: Icon(Icons.search),
+                            ),
+                          ),
+                        ),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                          child: Row(
+                            children: ['Todas', 'Con saldo', 'Al día'].map((filtro) {
+                              final activo = filtro == _filtro;
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 7),
+                                child: ChoiceChip(
+                                  label: Text(filtro),
+                                  selected: activo,
+                                  onSelected: (_) => setState(() => _filtro = filtro),
+                                  selectedColor: AppTheme.violet,
+                                  labelStyle: TextStyle(
+                                    color: activo ? Colors.white : AppTheme.dark,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                        Expanded(
+                          child: filtrados.isEmpty
+                              ? const Center(child: Text('No se encontraron clientes'))
+                              : ListView.builder(
+                                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 15),
+                                  itemCount: filtrados.length,
+                                  itemBuilder: (context, index) {
+                                    final cliente = filtrados[index];
+                                    final iniciales = cliente.nombre
+                                        .trim()
+                                        .split(RegExp(r'\s+'))
+                                        .take(2)
+                                        .map((p) => p.isNotEmpty ? p[0].toUpperCase() : '')
+                                        .join();
+
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 9),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        border: Border.all(color: AppTheme.border),
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: ListTile(
+                                        contentPadding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 5,
+                                        ),
+                                        leading: CircleAvatar(
+                                          backgroundColor: const Color(0xFFFFEEF6),
+                                          child: Text(
+                                            iniciales.isEmpty ? 'C' : iniciales,
+                                            style: const TextStyle(
+                                              color: AppTheme.violet,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        title: Text(
+                                          cliente.nombre,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        subtitle: Text(
+                                          '${cliente.telefono}\n'
+                                          '${cliente.prendas} prendas registradas',
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            color: AppTheme.muted,
+                                          ),
+                                        ),
+                                        isThreeLine: true,
+                                        trailing: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              crossAxisAlignment: CrossAxisAlignment.end,
+                                              children: [
+                                                Text(
+                                                  cliente.deuda <= 0 ? 'AL DÍA' : 'DEBE',
+                                                  style: const TextStyle(
+                                                    fontSize: 8,
+                                                    color: AppTheme.muted,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  '\$${cliente.deuda.toStringAsFixed(2)}',
+                                                  style: TextStyle(
+                                                    color: cliente.deuda <= 0
+                                                        ? AppTheme.green
+                                                        : AppTheme.orange,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(width: 5),
+                                            const Icon(Icons.chevron_right, size: 19),
+                                          ],
+                                        ),
+                                        onTap: () => _resumenCliente(cliente),
+                                      ),
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+            );
+          },
+        ),
       ),
-    ),
     );
   }
 
@@ -251,9 +366,8 @@ class _ClientsScreenState extends State<ClientsScreen> {
                     labelText: 'Nombre completo',
                     prefixIcon: Icon(Icons.person_outline),
                   ),
-                  validator: (v) => v == null || v.trim().isEmpty
-                      ? 'Ingresa el nombre'
-                      : null,
+                  validator: (v) =>
+                      v == null || v.trim().isEmpty ? 'Ingresa el nombre' : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -263,9 +377,8 @@ class _ClientsScreenState extends State<ClientsScreen> {
                     labelText: 'Teléfono',
                     prefixIcon: Icon(Icons.phone_outlined),
                   ),
-                  validator: (v) => v == null || v.trim().isEmpty
-                      ? 'Ingresa el teléfono'
-                      : null,
+                  validator: (v) =>
+                      v == null || v.trim().isEmpty ? 'Ingresa el teléfono' : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -278,9 +391,8 @@ class _ClientsScreenState extends State<ClientsScreen> {
                     prefixIcon: Icon(Icons.home_outlined),
                     alignLabelWithHint: true,
                   ),
-                  validator: (v) => v == null || v.trim().isEmpty
-                      ? 'Ingresa la dirección'
-                      : null,
+                  validator: (v) =>
+                      v == null || v.trim().isEmpty ? 'Ingresa la dirección' : null,
                 ),
               ],
             ),
@@ -292,19 +404,20 @@ class _ClientsScreenState extends State<ClientsScreen> {
             child: const Text('Cancelar'),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               if (!formKey.currentState!.validate()) return;
 
-              final nuevo = ClienteDemo(
-                nombre: nombreController.text.trim(),
-                telefono: telefonoController.text.trim(),
-                direccion: direccionController.text.trim(),
-              );
+              final nombre = nombreController.text.trim();
+              final telefono = telefonoController.text.trim();
+              final direccion = direccionController.text.trim();
 
               Navigator.pop(dialogContext);
 
-              setState(() {
-                clientesDemo.add(nuevo);
+              await _db.collection('clientes').add({
+                'nombre': nombre,
+                'telefono': telefono,
+                'direccion': direccion,
+                'fecha': FieldValue.serverTimestamp(),
               });
 
               if (mounted) {
@@ -324,7 +437,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
     });
   }
 
-  void _resumenCliente(ClienteDemo cliente) {
+  void _resumenCliente(_ClienteData cliente) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -335,6 +448,13 @@ class _ClientsScreenState extends State<ClientsScreen> {
           minChildSize: 0.55,
           maxChildSize: 0.95,
           builder: (context, scrollController) {
+            final iniciales = cliente.nombre
+                .trim()
+                .split(RegExp(r'\s+'))
+                .take(2)
+                .map((p) => p.isNotEmpty ? p[0].toUpperCase() : '')
+                .join();
+
             return Container(
               decoration: const BoxDecoration(
                 color: Colors.white,
@@ -361,12 +481,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                         radius: 25,
                         backgroundColor: const Color(0xFFFFEEF6),
                         child: Text(
-                          cliente.nombre
-                              .trim()
-                              .split(RegExp(r'\s+'))
-                              .take(2)
-                              .map((p) => p[0])
-                              .join(),
+                          iniciales.isEmpty ? 'C' : iniciales,
                           style: const TextStyle(
                             color: AppTheme.violet,
                             fontWeight: FontWeight.bold,
@@ -441,46 +556,52 @@ class _ClientsScreenState extends State<ClientsScreen> {
                     )
                   else
                     ...cliente.compras.map(
-                      (compra) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 9),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              flex: 5,
-                              child: Text(
-                                compra.prendaNombre,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
+                      (compra) {
+                        final nombrePrenda = compra['prendaNombre'] ?? compra['prenda'] ?? 'Prenda';
+                        final cant = (compra['cantidad'] is num) ? (compra['cantidad'] as num).toInt() : 1;
+                        final precioUnitario = (compra['precio'] is num) ? (compra['precio'] as num).toDouble() : 0.0;
+                        final subtotal = (compra['total'] ?? compra['subtotal'] ?? (precioUnitario * cant)).toDouble();
+
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 5,
+                                child: Text(
+                                  nombrePrenda,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
-                            ),
-                            Expanded(
-                              flex: 4,
-                              child: Text(
-                                '${compra.cantidad} × '
-                                '\$${compra.precioUnitario.toStringAsFixed(2)}',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: AppTheme.muted,
+                              Expanded(
+                                flex: 4,
+                                child: Text(
+                                  '$cant × \$${precioUnitario.toStringAsFixed(2)}',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppTheme.muted,
+                                  ),
                                 ),
                               ),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Text(
-                                '\$${compra.subtotal.toStringAsFixed(2)}',
-                                textAlign: TextAlign.end,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  '\$${subtotal.toStringAsFixed(2)}',
+                                  textAlign: TextAlign.end,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                   const Divider(height: 28),
                   _filaTotal('Total comprado', cliente.totalComprado),
@@ -554,9 +675,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                             Navigator.pop(sheetContext);
                             _registrarPago(cliente);
                           },
-                          icon: const Icon(
-                            Icons.account_balance_wallet_outlined,
-                          ),
+                          icon: const Icon(Icons.account_balance_wallet_outlined),
                           label: const Text('Registrar pago'),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppTheme.violet,
@@ -581,9 +700,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
           },
         );
       },
-    ).whenComplete(() {
-      if (mounted) setState(() {});
-    });
+    );
   }
 
   Widget _filaTotal(String titulo, double monto) {
@@ -598,8 +715,12 @@ class _ClientsScreenState extends State<ClientsScreen> {
     );
   }
 
-  void _agregarPrenda(ClienteDemo cliente) {
-    final disponibles = prendasDemo.where((p) => p.activa).toList();
+  Future<void> _agregarPrenda(_ClienteData cliente) async {
+    // Obtener prendas activas de Firestore
+    final snapPrendas = await _db.collection('prendas').where('activa', isEqualTo: true).get();
+    if (!mounted) return;
+
+    final disponibles = snapPrendas.docs.map((d) => PrendaModel.fromFirestore(d)).toList();
 
     if (disponibles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -608,21 +729,22 @@ class _ClientsScreenState extends State<ClientsScreen> {
       return;
     }
 
-    PrendaDemo seleccionada = disponibles.first;
+    PrendaModel seleccionada = disponibles.first;
     final cantidadController = TextEditingController(text: '1');
     final formKey = GlobalKey<FormState>();
 
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (context, actualizarDialogo) => AlertDialog(
+        builder: (alertContext, actualizarDialogo) => AlertDialog(
           title: const Text('Agregar prenda'),
           content: Form(
             key: formKey,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                DropdownButtonFormField<PrendaDemo>(
+                DropdownButtonFormField<PrendaModel>(
                   initialValue: seleccionada,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Prenda'),
@@ -666,11 +788,25 @@ class _ClientsScreenState extends State<ClientsScreen> {
               child: const Text('Cancelar'),
             ),
             FilledButton(
-              onPressed: () {
+              onPressed: () async {
                 if (!formKey.currentState!.validate()) return;
                 final cantidad = int.parse(cantidadController.text);
+                final total = seleccionada.precio * cantidad;
+
                 Navigator.pop(dialogContext);
-                setState(() => cliente.agregarCompra(seleccionada, cantidad));
+
+                await _db.collection('compras').add({
+                  'clienteId': cliente.id,
+                  'clienteNombre': cliente.nombre,
+                  'prenda': seleccionada.nombre,
+                  'prendaNombre': seleccionada.nombre,
+                  'precio': seleccionada.precio,
+                  'cantidad': cantidad,
+                  'total': total,
+                  'subtotal': total,
+                  'fecha': FieldValue.serverTimestamp(),
+                });
+
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -687,7 +823,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
     ).then((_) => cantidadController.dispose());
   }
 
-  void _registrarPago(ClienteDemo cliente) {
+  void _registrarPago(_ClienteData cliente) {
     if (cliente.deuda <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Esta clienta no tiene saldo pendiente')),
@@ -704,10 +840,10 @@ class _ClientsScreenState extends State<ClientsScreen> {
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         return StatefulBuilder(
-          builder: (context, actualizarDialogo) {
+          builder: (modalContext, actualizarDialogo) {
             return Padding(
               padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom,
               ),
               child: Container(
                 padding: const EdgeInsets.fromLTRB(20, 26, 20, 24),
@@ -815,9 +951,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                             OutlinedButton(
                               onPressed: () {
                                 actualizarDialogo(() {
-                                  montoController.text = monto.toStringAsFixed(
-                                    2,
-                                  );
+                                  montoController.text = monto.toStringAsFixed(2);
                                 });
                               },
                               child: Text(
@@ -832,21 +966,29 @@ class _ClientsScreenState extends State<ClientsScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton.icon(
-                          onPressed: () {
+                          onPressed: () async {
                             if (!formKey.currentState!.validate()) return;
                             final monto = double.parse(
                               montoController.text.replaceAll(',', '.'),
                             );
-                            final registrado = cliente.registrarPago(monto);
-                            if (!registrado) return;
 
                             Navigator.pop(sheetContext);
-                            setState(() {});
-                            ScaffoldMessenger.of(this.context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Pago registrado correctamente'),
-                              ),
-                            );
+
+                            await _db.collection('pagos').add({
+                              'clienteId': cliente.id,
+                              'clienteNombre': cliente.nombre,
+                              'monto': monto,
+                              'observacion': 'Abono desde clientas',
+                              'fecha': FieldValue.serverTimestamp(),
+                            });
+
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Pago registrado correctamente'),
+                                ),
+                              );
+                            }
                           },
                           icon: const Icon(Icons.check),
                           label: const Text('Confirmar pago'),
@@ -867,7 +1009,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
     ).whenComplete(montoController.dispose);
   }
 
-  void _verHistorial(ClienteDemo cliente) {
+  void _verHistorial(_ClienteData cliente) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -894,15 +1036,24 @@ class _ClientsScreenState extends State<ClientsScreen> {
                 const ListTile(title: Text('Sin compras registradas'))
               else
                 ...cliente.compras.map(
-                  (compra) => ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(compra.prendaNombre),
-                    subtitle: Text(
-                      '${compra.cantidad} unidades · '
-                      '${compra.fecha.day}/${compra.fecha.month}/${compra.fecha.year}',
-                    ),
-                    trailing: Text('\$${compra.subtotal.toStringAsFixed(2)}'),
-                  ),
+                  (compra) {
+                    final nombrePrenda = compra['prendaNombre'] ?? compra['prenda'] ?? 'Prenda';
+                    final cant = (compra['cantidad'] is num) ? (compra['cantidad'] as num).toInt() : 1;
+                    final subtotal = (compra['total'] ?? compra['subtotal'] ?? 0).toDouble();
+                    final ts = compra['fecha'];
+                    String fechaStr = 'Reciente';
+                    if (ts is Timestamp) {
+                      final f = ts.toDate();
+                      fechaStr = '${f.day}/${f.month}/${f.year}';
+                    }
+
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(nombrePrenda),
+                      subtitle: Text('$cant unidades · $fechaStr'),
+                      trailing: Text('\$${subtotal.toStringAsFixed(2)}'),
+                    );
+                  },
                 ),
               const Divider(),
               const Text(
@@ -913,20 +1064,28 @@ class _ClientsScreenState extends State<ClientsScreen> {
                 const ListTile(title: Text('Sin pagos registrados'))
               else
                 ...cliente.pagos.map(
-                  (pago) => ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Abono recibido'),
-                    subtitle: Text(
-                      '${pago.fecha.day}/${pago.fecha.month}/${pago.fecha.year}',
-                    ),
-                    trailing: Text(
-                      '\$${pago.monto.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        color: AppTheme.green,
-                        fontWeight: FontWeight.bold,
+                  (pago) {
+                    final monto = (pago['monto'] ?? 0).toDouble();
+                    final ts = pago['fecha'];
+                    String fechaStr = 'Reciente';
+                    if (ts is Timestamp) {
+                      final f = ts.toDate();
+                      fechaStr = '${f.day}/${f.month}/${f.year}';
+                    }
+
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Abono recibido'),
+                      subtitle: Text(fechaStr),
+                      trailing: Text(
+                        '\$${monto.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          color: AppTheme.green,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
               const SizedBox(height: 10),
               SizedBox(

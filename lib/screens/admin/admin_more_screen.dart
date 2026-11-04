@@ -393,7 +393,7 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
 
                 if (estadoSol == 'pendiente' || (estado == false && aprobado != true)) {
                   countPendientes++;
-                } else {
+                } else if (d['adminId'] == widget.admin.id) {
                   countActivos++;
                 }
               }
@@ -503,6 +503,8 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
             final allDocs = snapshot.data?.docs ?? [];
 
             // Filtrar según pestaña
+            // - Pendientes: sin adminId (cualquier admin puede aprobarlos)
+            // - Activos: solo los que pertenecen a este admin
             final filteredDocs = allDocs.where((doc) {
               final d = doc.data() as Map<String, dynamic>;
               final estado = d['estado'];
@@ -510,7 +512,12 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
               final aprobado = d['aprobado'];
               final esPendiente = estadoSol == 'pendiente' || (estado == false && aprobado != true);
 
-              return _tabSeleccionada == 1 ? esPendiente : !esPendiente;
+              if (_tabSeleccionada == 1) {
+                return esPendiente;
+              } else {
+                // Solo activos que pertenecen a este admin
+                return !esPendiente && d['adminId'] == widget.admin.id;
+              }
             }).toList();
 
             if (filteredDocs.isEmpty) {
@@ -760,13 +767,15 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
     try {
       final db = FirebaseFirestore.instance;
       final lote = db.batch();
+      final adminId = widget.admin.id;
 
-      // Actualizar en 'secretarios'
+      // Actualizar en 'secretarios' — vincular al admin que aprueba
       lote.update(db.collection('secretarios').doc(docId), {
         'estado': true,
         'aprobado': true,
         'estado_solicitud': 'aprobado',
         'fecha_aprobacion': FieldValue.serverTimestamp(),
+        'adminId': adminId,
       });
 
       // Si tiene UID asociado o documento en usuarios con el mismo id
@@ -777,6 +786,7 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
           'estado': 'activo',
           'aprobado': true,
           'rol': 'secretaria',
+          'adminId': adminId,
         });
       } else {
         // Buscar por correo en 'usuarios' si el docId no era el UID
@@ -788,6 +798,7 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
               'estado': 'activo',
               'aprobado': true,
               'rol': 'secretaria',
+              'adminId': adminId,
             });
           }
         }
@@ -1063,6 +1074,7 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                               'aprobado': true,
                               'estado_solicitud': 'aprobado',
                               'fecha_registro': FieldValue.serverTimestamp(),
+                              'adminId': widget.admin.id,
                             });
                             if (bottomSheetContext.mounted) {
                               Navigator.pop(bottomSheetContext);

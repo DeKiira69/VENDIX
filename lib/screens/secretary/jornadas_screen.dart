@@ -1,6 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-import '../../data/datos_prueba.dart';
 import '../../theme/app_theme.dart';
 
 class JornadasScreen extends StatefulWidget {
@@ -11,205 +11,136 @@ class JornadasScreen extends StatefulWidget {
 }
 
 class _JornadasScreenState extends State<JornadasScreen> {
-  // ──────────────── Crear nueva jornada ────────────────
+  final _db = FirebaseFirestore.instance;
 
   Future<void> _crearJornada() async {
     final nombreController = TextEditingController();
-
     final nombre = await showDialog<String>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text(
-            'Nuevo Live',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                '¿Cómo quieres llamar a esta sesión de ventas?',
-                style: TextStyle(fontSize: 12, color: AppTheme.muted),
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Nuevo Live', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('¿Cómo quieres llamar a esta sesión de ventas?',
+                style: TextStyle(fontSize: 12, color: AppTheme.muted)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: nombreController,
+              autofocus: true,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                hintText: 'Ej: Live Viernes de Ofertas',
+                prefixIcon: Icon(Icons.live_tv_outlined),
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: nombreController,
-                autofocus: true,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  hintText: 'Ej: Live Viernes de Ofertas',
-                  prefixIcon: Icon(Icons.live_tv_outlined),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: AppTheme.violet),
-              onPressed: () {
-                final texto = nombreController.text.trim();
-                if (texto.isEmpty) return;
-                Navigator.pop(dialogContext, texto);
-              },
-              child: const Text('Crear'),
             ),
           ],
-        );
-      },
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.violet),
+            onPressed: () {
+              final texto = nombreController.text.trim();
+              if (texto.isEmpty) return;
+              Navigator.pop(ctx, texto);
+            },
+            child: const Text('Crear'),
+          ),
+        ],
+      ),
     );
-
     nombreController.dispose();
-
     if (nombre == null || !mounted) return;
 
-    setState(() {
-      jornadasDemo.insert(
-        0,
-        JornadaDemo(nombre: nombre, fecha: DateTime.now()),
-      );
+    await _db.collection('jornadas').add({
+      'nombre': nombre,
+      'fecha': FieldValue.serverTimestamp(),
+      'estado': 'pendiente',
+      'horaInicio': null,
+      'horaFin': null,
     });
-
     _mostrarMensaje('Jornada "$nombre" creada. ¡Iníciala cuando estés lista!');
   }
 
-  // ──────────────── Iniciar jornada ────────────────
-
-  void _iniciarJornada(JornadaDemo jornada) {
-    // Verificar que no haya otra jornada activa
-    final activa = jornadasDemo.where((j) => j.estaActiva).toList();
-
-    if (activa.isNotEmpty) {
-      _mostrarMensaje(
-        'Ya hay un live en curso: "${activa.first.nombre}". Ciérralo primero.',
-      );
+  Future<void> _iniciarJornada(String docId, String nombre) async {
+    // Verificar que no haya otra activa
+    final activas = await _db.collection('jornadas').where('estado', isEqualTo: 'activa').get();
+    if (activas.docs.isNotEmpty) {
+      _mostrarMensaje('Ya hay un live en curso: "${activas.docs.first['nombre']}". Ciérralo primero.');
       return;
     }
-
-    setState(() {
-      jornada.horaInicio = DateTime.now();
-      jornada.estado = 'activa';
+    await _db.collection('jornadas').doc(docId).update({
+      'estado': 'activa',
+      'horaInicio': FieldValue.serverTimestamp(),
     });
-
-    _mostrarMensaje('🔴 ¡Live "${jornada.nombre}" iniciado!');
+    _mostrarMensaje('🔴 ¡Live "$nombre" iniciado!');
   }
 
-  // ──────────────── Cerrar jornada ────────────────
-
-  Future<void> _cerrarJornada(JornadaDemo jornada) async {
+  Future<void> _cerrarJornada(String docId, String nombre) async {
     final confirmar = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text(
-            'Cerrar Live',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '¿Segura que quieres cerrar "${jornada.nombre}"?',
-                style: const TextStyle(fontSize: 13),
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Cerrar Live', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('¿Segura que quieres cerrar "$nombre"?', style: const TextStyle(fontSize: 13)),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(12)),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline, color: AppTheme.orange, size: 18),
+                  SizedBox(width: 8),
+                  Expanded(child: Text('No podrás registrar más ventas en esta jornada después de cerrarla.',
+                      style: TextStyle(fontSize: 11, color: AppTheme.dark))),
+                ],
               ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF3E0),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.info_outline, color: AppTheme.orange, size: 18),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'No podrás registrar más ventas en esta jornada después de cerrarla.',
-                        style: TextStyle(fontSize: 11, color: AppTheme.dark),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: AppTheme.orange),
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Cerrar Live'),
             ),
           ],
-        );
-      },
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.orange),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Cerrar Live'),
+          ),
+        ],
+      ),
     );
-
     if (confirmar != true || !mounted) return;
-
-    setState(() {
-      jornada.horaFin = DateTime.now();
-      jornada.estado = 'cerrada';
+    await _db.collection('jornadas').doc(docId).update({
+      'estado': 'cerrada',
+      'horaFin': FieldValue.serverTimestamp(),
     });
-
-    _mostrarMensaje('Live "${jornada.nombre}" cerrado.');
+    _mostrarMensaje('Live "$nombre" cerrado.');
   }
 
-  // ──────────────── Eliminar jornada pendiente ────────────────
-
-  Future<void> _eliminarJornada(JornadaDemo jornada) async {
+  Future<void> _eliminarJornada(String docId, String nombre) async {
     final confirmar = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Eliminar jornada', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+        content: Text('¿Eliminar "$nombre"? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar'),
           ),
-          title: const Text(
-            'Eliminar jornada',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
-          ),
-          content: Text(
-            '¿Eliminar "${jornada.nombre}"? Esta acción no se puede deshacer.',
-            style: const TextStyle(fontSize: 13),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.red.shade600,
-              ),
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Eliminar'),
-            ),
-          ],
-        );
-      },
+        ],
+      ),
     );
-
     if (confirmar != true || !mounted) return;
-
-    setState(() {
-      jornadasDemo.remove(jornada);
-    });
-
+    await _db.collection('jornadas').doc(docId).delete();
     _mostrarMensaje('Jornada eliminada.');
   }
 
@@ -219,69 +150,48 @@ class _JornadasScreenState extends State<JornadasScreen> {
     );
   }
 
-  // ──────────────── Formatear fecha ────────────────
-
-  String _formatearFecha(DateTime fecha) {
+  String _formatearFecha(Timestamp? ts) {
+    if (ts == null) return '';
+    final fecha = ts.toDate();
     final ahora = DateTime.now();
     final hoy = DateTime(ahora.year, ahora.month, ahora.day);
     final diaFecha = DateTime(fecha.year, fecha.month, fecha.day);
     final diferencia = hoy.difference(diaFecha).inDays;
-
     if (diferencia == 0) return 'Hoy';
     if (diferencia == 1) return 'Ayer';
     if (diferencia < 7) return 'Hace $diferencia días';
-
-    final meses = [
-      '', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
-      'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
-    ];
+    const meses = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
     return '${fecha.day} ${meses[fecha.month]} ${fecha.year}';
   }
 
-  String _formatearHora(DateTime hora) {
-    final h = hora.hour.toString().padLeft(2, '0');
-    final m = hora.minute.toString().padLeft(2, '0');
-    return '$h:$m';
+  String _formatearHora(Timestamp? ts) {
+    if (ts == null) return '';
+    final hora = ts.toDate();
+    return '${hora.hour.toString().padLeft(2, '0')}:${hora.minute.toString().padLeft(2, '0')}';
   }
 
-  // ──────────────── BUILD ────────────────
+  String _duracion(Timestamp? inicio, Timestamp? fin) {
+    if (inicio == null) return 'Sin iniciar';
+    final desde = inicio.toDate();
+    final hasta = fin?.toDate() ?? DateTime.now();
+    final diff = hasta.difference(desde);
+    return '${diff.inHours}h ${diff.inMinutes % 60}m${fin == null ? ' en curso' : ''}';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final activas = jornadasDemo.where((j) => j.estaActiva).toList();
-    final pendientes = jornadasDemo.where((j) => j.estaPendiente).toList();
-    final cerradas = jornadasDemo.where((j) => j.estaCerrada).toList();
-
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
         backgroundColor: AppTheme.background,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'GESTIÓN',
-              style: TextStyle(
-                fontSize: 10,
-                letterSpacing: 1.5,
-                color: AppTheme.violet,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            Text('GESTIÓN', style: TextStyle(fontSize: 10, letterSpacing: 1.5, color: AppTheme.violet, fontWeight: FontWeight.bold)),
             SizedBox(height: 3),
-            Text(
-              'Jornadas de venta',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 21,
-                color: AppTheme.dark,
-              ),
-            ),
+            Text('Jornadas de venta', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 21, color: AppTheme.dark)),
           ],
         ),
       ),
@@ -290,124 +200,100 @@ class _JornadasScreenState extends State<JornadasScreen> {
         backgroundColor: AppTheme.violet,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add),
-        label: const Text(
-          'Nuevo Live',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        label: const Text('Nuevo Live', style: TextStyle(fontWeight: FontWeight.bold)),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
-        children: [
-          // ── Jornada activa (si existe) ──
-          if (activas.isNotEmpty) ...[
-            const _SeccionTitulo(titulo: '🔴 EN VIVO AHORA'),
-            const SizedBox(height: 8),
-            ...activas.map(
-              (jornada) => _TarjetaJornadaActiva(
-                jornada: jornada,
-                onCerrar: () => _cerrarJornada(jornada),
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
+      body: StreamBuilder<QuerySnapshot>(
+        stream: _db.collection('jornadas').orderBy('fecha', descending: true).snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final docs = snapshot.data?.docs ?? [];
+          final activas = docs.where((d) => d['estado'] == 'activa').toList();
+          final pendientes = docs.where((d) => d['estado'] == 'pendiente').toList();
+          final cerradas = docs.where((d) => d['estado'] == 'cerrada').toList();
 
-          // ── Jornadas pendientes ──
-          if (pendientes.isNotEmpty) ...[
-            const _SeccionTitulo(titulo: 'LISTAS PARA INICIAR'),
-            const SizedBox(height: 8),
-            ...pendientes.map(
-              (jornada) => _TarjetaJornadaPendiente(
-                jornada: jornada,
-                formatearFecha: _formatearFecha,
-                onIniciar: () => _iniciarJornada(jornada),
-                onEliminar: () => _eliminarJornada(jornada),
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
-
-          // ── Mensaje si no hay nada ──
-          if (activas.isEmpty && pendientes.isEmpty) ...[
-            const SizedBox(height: 40),
-            Center(
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.live_tv_outlined,
-                    size: 60,
-                    color: AppTheme.muted.withValues(alpha: 0.4),
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
+            children: [
+              if (activas.isNotEmpty) ...[
+                const _SeccionTitulo(titulo: '🔴 EN VIVO AHORA'),
+                const SizedBox(height: 8),
+                ...activas.map((doc) {
+                  final d = doc.data() as Map<String, dynamic>;
+                  return _TarjetaActiva(
+                    nombre: d['nombre'] ?? '',
+                    duracion: _duracion(d['horaInicio'], null),
+                    horaInicio: _formatearHora(d['horaInicio']),
+                    onCerrar: () => _cerrarJornada(doc.id, d['nombre'] ?? ''),
+                  );
+                }),
+                const SizedBox(height: 20),
+              ],
+              if (pendientes.isNotEmpty) ...[
+                const _SeccionTitulo(titulo: 'LISTAS PARA INICIAR'),
+                const SizedBox(height: 8),
+                ...pendientes.map((doc) {
+                  final d = doc.data() as Map<String, dynamic>;
+                  return _TarjetaPendiente(
+                    nombre: d['nombre'] ?? '',
+                    fechaTexto: _formatearFecha(d['fecha']),
+                    onIniciar: () => _iniciarJornada(doc.id, d['nombre'] ?? ''),
+                    onEliminar: () => _eliminarJornada(doc.id, d['nombre'] ?? ''),
+                  );
+                }),
+                const SizedBox(height: 20),
+              ],
+              if (activas.isEmpty && pendientes.isEmpty) ...[
+                const SizedBox(height: 40),
+                Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.live_tv_outlined, size: 60, color: AppTheme.muted.withValues(alpha: 0.4)),
+                      const SizedBox(height: 12),
+                      const Text('No hay lives programados', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.muted)),
+                      const SizedBox(height: 4),
+                      const Text('Toca "Nuevo Live" para crear uno', style: TextStyle(fontSize: 12, color: AppTheme.muted)),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'No hay lives programados',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.muted,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Toca "Nuevo Live" para crear uno',
-                    style: TextStyle(fontSize: 12, color: AppTheme.muted),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 40),
-          ],
-
-          // ── Historial de jornadas cerradas ──
-          if (cerradas.isNotEmpty) ...[
-            const _SeccionTitulo(titulo: 'HISTORIAL'),
-            const SizedBox(height: 8),
-            ...cerradas.map(
-              (jornada) => _TarjetaJornadaCerrada(
-                jornada: jornada,
-                formatearFecha: _formatearFecha,
-                formatearHora: _formatearHora,
-              ),
-            ),
-          ],
-        ],
+                ),
+                const SizedBox(height: 40),
+              ],
+              if (cerradas.isNotEmpty) ...[
+                const _SeccionTitulo(titulo: 'HISTORIAL'),
+                const SizedBox(height: 8),
+                ...cerradas.map((doc) {
+                  final d = doc.data() as Map<String, dynamic>;
+                  return _TarjetaCerrada(
+                    nombre: d['nombre'] ?? '',
+                    fechaTexto: _formatearFecha(d['fecha']),
+                    horaInicio: _formatearHora(d['horaInicio']),
+                    horaFin: _formatearHora(d['horaFin']),
+                    duracion: _duracion(d['horaInicio'], d['horaFin']),
+                  );
+                }),
+              ],
+            ],
+          );
+        },
       ),
     );
   }
 }
-
-// ═══════════════════════════════════════════════════════
-//  WIDGETS PRIVADOS
-// ═══════════════════════════════════════════════════════
 
 class _SeccionTitulo extends StatelessWidget {
   final String titulo;
-
   const _SeccionTitulo({required this.titulo});
-
   @override
   Widget build(BuildContext context) {
-    return Text(
-      titulo,
-      style: const TextStyle(
-        fontSize: 10,
-        letterSpacing: 1.1,
-        color: AppTheme.muted,
-        fontWeight: FontWeight.bold,
-      ),
-    );
+    return Text(titulo, style: const TextStyle(fontSize: 10, letterSpacing: 1.1, color: AppTheme.muted, fontWeight: FontWeight.bold));
   }
 }
 
-// ── Tarjeta de jornada ACTIVA (estilo destacado) ──
-
-class _TarjetaJornadaActiva extends StatelessWidget {
-  final JornadaDemo jornada;
+class _TarjetaActiva extends StatelessWidget {
+  final String nombre, duracion, horaInicio;
   final VoidCallback onCerrar;
-
-  const _TarjetaJornadaActiva({
-    required this.jornada,
-    required this.onCerrar,
-  });
+  const _TarjetaActiva({required this.nombre, required this.duracion, required this.horaInicio, required this.onCerrar});
 
   @override
   Widget build(BuildContext context) {
@@ -416,70 +302,29 @@ class _TarjetaJornadaActiva extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFF50308F), Color(0xFF7850B9), Color(0xFFA568B5)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 9,
-                height: 9,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFF6B9A),
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                'EN VIVO',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 10,
-                  letterSpacing: 1,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  jornada.duracionTexto,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
+          Row(children: [
+            Container(width: 9, height: 9, decoration: const BoxDecoration(color: Color(0xFFFF6B9A), shape: BoxShape.circle)),
+            const SizedBox(width: 8),
+            const Text('EN VIVO', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1)),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+              child: Text(duracion, style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
+            ),
+          ]),
           const SizedBox(height: 14),
-          Text(
-            jornada.nombre,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 19,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          if (jornada.horaInicio != null) ...[
+          Text(nombre, style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.bold)),
+          if (horaInicio.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text(
-              'Iniciado a las ${jornada.horaInicio!.hour.toString().padLeft(2, '0')}:${jornada.horaInicio!.minute.toString().padLeft(2, '0')}',
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
-            ),
+            Text('Iniciado a las $horaInicio', style: const TextStyle(color: Colors.white70, fontSize: 12)),
           ],
           const SizedBox(height: 18),
           SizedBox(
@@ -487,18 +332,12 @@ class _TarjetaJornadaActiva extends StatelessWidget {
             child: OutlinedButton.icon(
               onPressed: onCerrar,
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: const BorderSide(color: Colors.white38),
+                foregroundColor: Colors.white, side: const BorderSide(color: Colors.white38),
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(13),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
               ),
               icon: const Icon(Icons.stop_circle_outlined, size: 18),
-              label: const Text(
-                'Cerrar Live',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              ),
+              label: const Text('Cerrar Live', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
             ),
           ),
         ],
@@ -507,180 +346,84 @@ class _TarjetaJornadaActiva extends StatelessWidget {
   }
 }
 
-// ── Tarjeta de jornada PENDIENTE ──
-
-class _TarjetaJornadaPendiente extends StatelessWidget {
-  final JornadaDemo jornada;
-  final String Function(DateTime) formatearFecha;
-  final VoidCallback onIniciar;
-  final VoidCallback onEliminar;
-
-  const _TarjetaJornadaPendiente({
-    required this.jornada,
-    required this.formatearFecha,
-    required this.onIniciar,
-    required this.onEliminar,
-  });
+class _TarjetaPendiente extends StatelessWidget {
+  final String nombre, fechaTexto;
+  final VoidCallback onIniciar, onEliminar;
+  const _TarjetaPendiente({required this.nombre, required this.fechaTexto, required this.onIniciar, required this.onEliminar});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF0E9FC),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.live_tv_outlined,
-              color: AppTheme.violet,
-              size: 22,
-            ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.border)),
+      child: Row(children: [
+        Container(
+          width: 44, height: 44,
+          decoration: BoxDecoration(color: const Color(0xFFF0E9FC), borderRadius: BorderRadius.circular(12)),
+          child: const Icon(Icons.live_tv_outlined, color: AppTheme.violet, size: 22),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(nombre, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.dark)),
+            const SizedBox(height: 3),
+            Text('Creada $fechaTexto', style: const TextStyle(fontSize: 11, color: AppTheme.muted)),
+          ],
+        )),
+        IconButton(onPressed: onEliminar, icon: const Icon(Icons.delete_outline, size: 19), color: AppTheme.muted),
+        const SizedBox(width: 2),
+        FilledButton(
+          onPressed: onIniciar,
+          style: FilledButton.styleFrom(
+            backgroundColor: AppTheme.green, foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  jornada.nombre,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.dark,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'Creada ${formatearFecha(jornada.fecha)}',
-                  style: const TextStyle(fontSize: 11, color: AppTheme.muted),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: onEliminar,
-            icon: const Icon(Icons.delete_outline, size: 19),
-            color: AppTheme.muted,
-            tooltip: 'Eliminar',
-          ),
-          const SizedBox(width: 2),
-          FilledButton(
-            onPressed: onIniciar,
-            style: FilledButton.styleFrom(
-              backgroundColor: AppTheme.green,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(11),
-              ),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.play_arrow, size: 16),
-                SizedBox(width: 4),
-                Text(
-                  'Iniciar',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+          child: const Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.play_arrow, size: 16), SizedBox(width: 4),
+            Text('Iniciar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+          ]),
+        ),
+      ]),
     );
   }
 }
 
-// ── Tarjeta de jornada CERRADA ──
-
-class _TarjetaJornadaCerrada extends StatelessWidget {
-  final JornadaDemo jornada;
-  final String Function(DateTime) formatearFecha;
-  final String Function(DateTime) formatearHora;
-
-  const _TarjetaJornadaCerrada({
-    required this.jornada,
-    required this.formatearFecha,
-    required this.formatearHora,
-  });
+class _TarjetaCerrada extends StatelessWidget {
+  final String nombre, fechaTexto, horaInicio, horaFin, duracion;
+  const _TarjetaCerrada({required this.nombre, required this.fechaTexto, required this.horaInicio, required this.horaFin, required this.duracion});
 
   @override
   Widget build(BuildContext context) {
+    final horaTexto = [if (horaInicio.isNotEmpty) horaInicio, if (horaFin.isNotEmpty) horaFin].join(' – ');
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5F3F7),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.check_circle_outline,
-              color: AppTheme.muted,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  jornada.nombre,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.dark,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '${formatearFecha(jornada.fecha)}'
-                  '${jornada.horaInicio != null ? ' · ${formatearHora(jornada.horaInicio!)}' : ''}'
-                  '${jornada.horaFin != null ? ' – ${formatearHora(jornada.horaFin!)}' : ''}',
-                  style: const TextStyle(fontSize: 11, color: AppTheme.muted),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5F3F7),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              jornada.duracionTexto,
-              style: const TextStyle(
-                fontSize: 10,
-                color: AppTheme.muted,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.border)),
+      child: Row(children: [
+        Container(
+          width: 44, height: 44,
+          decoration: BoxDecoration(color: const Color(0xFFF5F3F7), borderRadius: BorderRadius.circular(12)),
+          child: const Icon(Icons.check_circle_outline, color: AppTheme.muted, size: 22),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(nombre, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.dark)),
+            const SizedBox(height: 3),
+            Text('$fechaTexto${horaTexto.isNotEmpty ? ' · $horaTexto' : ''}',
+                style: const TextStyle(fontSize: 11, color: AppTheme.muted)),
+          ],
+        )),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(color: const Color(0xFFF5F3F7), borderRadius: BorderRadius.circular(8)),
+          child: Text(duracion, style: const TextStyle(fontSize: 10, color: AppTheme.muted, fontWeight: FontWeight.bold)),
+        ),
+      ]),
     );
   }
 }
