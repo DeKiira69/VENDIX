@@ -16,8 +16,13 @@ import '../auth/login_screen.dart';
 /// y accesos rápidos a Prendas, Pagos y Configuración.
 class AdminMoreScreen extends StatelessWidget {
   final AdministradorModel admin;
+  final VoidCallback? onVolver;
 
-  const AdminMoreScreen({super.key, required this.admin});
+  const AdminMoreScreen({
+    super.key,
+    required this.admin,
+    this.onVolver,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -30,23 +35,31 @@ class AdminMoreScreen extends StatelessWidget {
             // ─── Top bar ───
             Row(
               children: [
-                InkWell(
-                  onTap: () => Navigator.pop(context),
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF0E9FC),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back_ios_new,
-                      size: 16,
-                      color: AppTheme.violet,
+                if (onVolver != null || Navigator.canPop(context)) ...[
+                  InkWell(
+                    onTap: () {
+                      if (onVolver != null) {
+                        onVolver!();
+                      } else if (Navigator.canPop(context)) {
+                        Navigator.maybePop(context);
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0E9FC),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new,
+                        size: 16,
+                        color: AppTheme.violet,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
+                  const SizedBox(width: 12),
+                ],
                 const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

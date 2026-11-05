@@ -220,12 +220,13 @@ class _ClothingPricesScreenState extends State<ClothingPricesScreen> {
           appBar: AppBar(
             backgroundColor: AppTheme.background,
             elevation: 0,
+            automaticallyImplyLeading: false,
             leading: Navigator.canPop(context)
                 ? Padding(
                     padding: const EdgeInsets.only(left: 12),
                     child: Center(
                       child: InkWell(
-                        onTap: () => Navigator.pop(context),
+                        onTap: () => Navigator.maybePop(context),
                         borderRadius: BorderRadius.circular(12),
                         child: Container(
                           padding: const EdgeInsets.all(8),

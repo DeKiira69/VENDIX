@@ -184,8 +184,30 @@ class _JornadasScreenState extends State<JornadasScreen> {
       backgroundColor: AppTheme.background,
       appBar: AppBar(
         backgroundColor: AppTheme.background,
-        elevation: 0,
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
+        automaticallyImplyLeading: false,
+        leading: Navigator.canPop(context)
+            ? Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: Center(
+                  child: InkWell(
+                    onTap: () => Navigator.maybePop(context),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0E9FC),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new,
+                        size: 16,
+                        color: AppTheme.violet,
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : null,
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

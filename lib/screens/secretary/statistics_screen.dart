@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 
 class StatisticsScreen extends StatelessWidget {
-  const StatisticsScreen({super.key});
+  final VoidCallback? onVolver;
+
+  const StatisticsScreen({super.key, this.onVolver});
 
   @override
   Widget build(BuildContext context) {
@@ -15,6 +17,37 @@ class StatisticsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Estadísticas'),
         backgroundColor: AppTheme.background,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        leading: (onVolver != null || Navigator.canPop(context))
+            ? Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: Center(
+                  child: InkWell(
+                    onTap: () {
+                      if (onVolver != null) {
+                        onVolver!();
+                      } else if (Navigator.canPop(context)) {
+                        Navigator.maybePop(context);
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0E9FC),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new,
+                        size: 16,
+                        color: AppTheme.violet,
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : null,
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: db.collection('clientes').snapshots(),

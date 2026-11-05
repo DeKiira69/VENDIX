@@ -34,9 +34,9 @@ class _SecretaryShellState extends State<SecretaryShell> {
         alAbrirEstadisticas: () => cambiarPantalla(3),
         alAbrirMas: () => cambiarPantalla(4),
       ),
-      const QuickSalesScreen(),
-      const ClientsScreen(),
-      const StatisticsScreen(),
+      QuickSalesScreen(onVolver: () => cambiarPantalla(0)),
+      ClientsScreen(onVolver: () => cambiarPantalla(0)),
+      StatisticsScreen(onVolver: () => cambiarPantalla(0)),
       const MoreScreen(),
     ];
 

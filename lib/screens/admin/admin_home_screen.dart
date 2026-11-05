@@ -7,7 +7,6 @@ import '../secretary/quick_sales_screen.dart';
 import '../secretary/clients_screen.dart';
 import '../secretary/clothing_prices_screen.dart';
 import '../secretary/statistics_screen.dart';
-import '../auth/login_screen.dart';
 import 'admin_more_screen.dart';
 
 class AdminHomeScreen extends StatefulWidget {
@@ -37,8 +36,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         child: _footerIndex == 0
             ? _buildHomeContent()
             : _footerIndex == 1
-                ? const QuickSalesScreen()
-                : AdminMoreScreen(admin: widget.admin),
+                ? QuickSalesScreen(onVolver: () => setState(() => _footerIndex = 0))
+                : AdminMoreScreen(
+                    admin: widget.admin,
+                    onVolver: () => setState(() => _footerIndex = 0),
+                  ),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -97,28 +99,39 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         // Top Bar
         Row(
           children: [
-            InkWell(
-              onTap: () {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                );
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
+            if (Navigator.canPop(context)) ...[
+              InkWell(
+                onTap: () => Navigator.maybePop(context),
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0E9FC),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_back_ios_new,
+                    size: 16,
+                    color: AppTheme.violet,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+            ] else ...[
+              Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF0E9FC),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
-                  Icons.arrow_back_ios_new,
-                  size: 16,
+                  Icons.storefront_rounded,
+                  size: 18,
                   color: AppTheme.violet,
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
+              const SizedBox(width: 12),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

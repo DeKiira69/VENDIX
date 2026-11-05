@@ -1,11 +1,13 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/prenda_model.dart';
 import '../../theme/app_theme.dart';
 
 class QuickSalesScreen extends StatefulWidget {
-  const QuickSalesScreen({super.key});
+  final VoidCallback? onVolver;
+
+  const QuickSalesScreen({super.key, this.onVolver});
 
   @override
   State<QuickSalesScreen> createState() => _QuickSalesScreenState();
@@ -491,6 +493,36 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
       appBar: AppBar(
         backgroundColor: AppTheme.background,
         elevation: 0,
+        automaticallyImplyLeading: false,
+        leading: (widget.onVolver != null || Navigator.canPop(context))
+            ? Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: Center(
+                  child: InkWell(
+                    onTap: () {
+                      if (widget.onVolver != null) {
+                        widget.onVolver!();
+                      } else if (Navigator.canPop(context)) {
+                        Navigator.maybePop(context);
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0E9FC),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new,
+                        size: 16,
+                        color: AppTheme.violet,
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : null,
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

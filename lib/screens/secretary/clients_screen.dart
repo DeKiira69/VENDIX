@@ -31,7 +31,9 @@ class _ClienteData {
 }
 
 class ClientsScreen extends StatefulWidget {
-  const ClientsScreen({super.key});
+  final VoidCallback? onVolver;
+
+  const ClientsScreen({super.key, this.onVolver});
 
   @override
   State<ClientsScreen> createState() => _ClientsScreenState();
@@ -156,9 +158,15 @@ class _ClientsScreenState extends State<ClientsScreen> {
                           padding: const EdgeInsets.fromLTRB(20, 15, 20, 12),
                           child: Row(
                             children: [
-                              if (Navigator.canPop(context)) ...[
+                              if (widget.onVolver != null || Navigator.canPop(context)) ...[
                                 InkWell(
-                                  onTap: () => Navigator.pop(context),
+                                  onTap: () {
+                                    if (widget.onVolver != null) {
+                                      widget.onVolver!();
+                                    } else if (Navigator.canPop(context)) {
+                                      Navigator.maybePop(context);
+                                    }
+                                  },
                                   borderRadius: BorderRadius.circular(20),
                                   child: Container(
                                     padding: const EdgeInsets.all(8),
