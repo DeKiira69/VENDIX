@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:vendix/services/cloudinary_service.dart';
+import 'cloudinary_service.dart';
 
 import '../theme/app_theme.dart';
 
@@ -12,7 +12,7 @@ class PerfilFotoService {
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
   static final ImagePicker _picker = ImagePicker();
 
-  /// ColecciÃ³n en Firestore dedicada exclusivamente a almacenar fotos de perfil.
+  /// Colección en Firestore dedicada exclusivamente a almacenar fotos de perfil.
   static const String coleccion = 'fotos_perfil';
 
   /// Obtiene en tiempo real la foto de perfil (Base64 o URL) de un usuario.
@@ -35,7 +35,7 @@ class PerfilFotoService {
 
   }
 
-  /// Guarda la foto de perfil en la colecciÃ³n `fotos_perfil` y sincroniza las demÃ¡s tablas.
+  /// Guarda la foto de perfil en la colección `fotos_perfil` y sincroniza las demás tablas.
   static Future<void> guardarFoto({
     required String usuarioId,
     required String fotoUrl,
@@ -99,7 +99,7 @@ class PerfilFotoService {
     await batch.commit();
   }
 
-  /// Muestra el menÃº inferior estilo WhatsApp para cambiar o eliminar la foto.
+  /// Muestra el menú inferior estilo WhatsApp para cambiar o eliminar la foto.
   static Future<void> mostrarOpcionesFotoWhatsApp({
     required BuildContext context,
     required String usuarioId,
@@ -168,7 +168,7 @@ class PerfilFotoService {
               ),
               const SizedBox(height: 18),
 
-              // Opciones estilo WhatsApp (CÃ¡mara, GalerÃ­a, Enlace)
+              // Opciones estilo WhatsApp (Cámara, Galería, Enlace)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
@@ -358,7 +358,7 @@ class PerfilFotoService {
   }
 
   /// Construye el Avatar circular que muestra la foto de perfil en Base64 o URL,
-  /// o las iniciales si no tiene foto, junto a la insignia de la cÃ¡mara estilo WhatsApp.
+  /// o las iniciales si no tiene foto, junto a la insignia de la cámara estilo WhatsApp.
   static Widget avatarConInsignia({
     required String? fotoData,
     required String iniciales,

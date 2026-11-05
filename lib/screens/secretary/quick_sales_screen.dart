@@ -45,6 +45,8 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
     return _pedidosPendientes.putIfAbsent(cId, () => {});
   }
 
+  final Map<String, String> _nombresClientesCache = {};
+
   double _totalPendiente(String clienteId) {
     final pedido = _pedidosPendientes[clienteId];
     if (pedido == null) return 0;
@@ -60,6 +62,32 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
     return pedido.values.fold<int>(0, (total, cantidad) => total + cantidad);
   }
 
+  int get _totalClientesConPedidos {
+    return _pedidosPendientes.entries
+        .where((e) => e.value.values.fold<int>(0, (s, c) => s + c) > 0)
+        .length;
+  }
+
+  int get _totalPrendasPendientesGlobal {
+    int total = 0;
+    for (final pedido in _pedidosPendientes.values) {
+      total += pedido.values.fold<int>(0, (s, c) => s + c);
+    }
+    return total;
+  }
+
+  double get _totalDineroPendienteGlobal {
+    double total = 0;
+    for (final pedido in _pedidosPendientes.values) {
+      for (final entrada in pedido.entries) {
+        total += entrada.key.precio * entrada.value;
+      }
+    }
+    return total;
+  }
+
+  bool get _hayPedidosPendientes => _totalPrendasPendientesGlobal > 0;
+
   void _agregarPrenda(PrendaModel prenda) {
     if (_clienteSeleccionadoId == null) {
       _mostrarMensaje('Selecciona una clienta primero.');
@@ -68,7 +96,6 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
 
     setState(() {
       final pedido = _pedidoActual;
-      // Buscar si ya existe una prenda con el mismo ID en el mapa
       final existente = pedido.keys.where((p) => p.id == prenda.id).firstOrNull;
       if (existente != null) {
         pedido[existente] = (pedido[existente] ?? 0) + 1;
@@ -78,15 +105,23 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
     });
   }
 
-  void _quitarPrenda(PrendaModel prenda) {
+  void _quitarPrenda(PrendaModel prenda, [String? targetClienteId]) {
+    final cId = targetClienteId ?? _clienteSeleccionadoId;
+    if (cId == null) return;
+
     setState(() {
-      final pedido = _pedidoActual;
+      final pedido = _pedidosPendientes[cId];
+      if (pedido == null) return;
+
       final existente = pedido.keys.where((p) => p.id == prenda.id).firstOrNull;
       if (existente == null) return;
 
       final cantidad = pedido[existente] ?? 0;
       if (cantidad <= 1) {
         pedido.remove(existente);
+        if (pedido.isEmpty) {
+          _pedidosPendientes.remove(cId);
+        }
       } else {
         pedido[existente] = cantidad - 1;
       }
@@ -99,16 +134,11 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
     );
   }
 
-  Future<void> _verResumen() async {
-    final cId = _clienteSeleccionadoId;
-    if (cId == null) {
-      _mostrarMensaje('Selecciona una clienta.');
-      return;
-    }
 
-    final pedido = Map<PrendaModel, int>.from(_pedidoActual);
+  Future<void> _verResumenCliente(String cId, String nombreCliente) async {
+    final pedido = Map<PrendaModel, int>.from(_pedidosPendientes[cId] ?? {});
     if (pedido.isEmpty) {
-      _mostrarMensaje('Toca una prenda para agregarla al pedido.');
+      _mostrarMensaje('Toca una prenda para agregarla al pedido de $nombreCliente.');
       return;
     }
 
@@ -121,7 +151,8 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: Text('Pedido de $_clienteSeleccionadoNombre'),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text('Pedido de $nombreCliente'),
           content: SizedBox(
             width: double.maxFinite,
             child: Column(
@@ -192,7 +223,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
 
       batch.set(docRef, {
         'clienteId': cId,
-        'clienteNombre': _clienteSeleccionadoNombre,
+        'clienteNombre': nombreCliente,
         'prenda': entrada.key.nombre,
         'prendaNombre': entrada.key.nombre,
         'precio': entrada.key.precio,
@@ -209,7 +240,247 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
       setState(() {
         _pedidosPendientes.remove(cId);
       });
-      _mostrarMensaje('Venta registrada correctamente.');
+      _mostrarMensaje('Venta de $nombreCliente registrada correctamente.');
+    }
+  }
+
+  Future<void> _registrarTodasLasVentas() async {
+    final pedidosValidos = _pedidosPendientes.entries
+        .where((e) => e.value.isNotEmpty)
+        .toList();
+
+    if (pedidosValidos.isEmpty) {
+      _mostrarMensaje('No hay prendas agregadas para registrar.');
+      return;
+    }
+
+    final totalPrendas = _totalPrendasPendientesGlobal;
+    final totalDinero = _totalDineroPendienteGlobal;
+    final totalClientes = pedidosValidos.length;
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1EAFE),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.shopping_bag_outlined,
+                  color: AppTheme.violet,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Resumen general del Live',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.dark,
+                      ),
+                    ),
+                    Text(
+                      'Todas las clientas con pedidos',
+                      style: TextStyle(fontSize: 11, color: AppTheme.muted),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ...pedidosValidos.map((entradaCliente) {
+                    final cId = entradaCliente.key;
+                    final nombreCliente = _nombresClientesCache[cId] ?? 'Clienta';
+                    final pedido = entradaCliente.value;
+                    final subtotalCliente = pedido.entries.fold<double>(
+                      0,
+                      (total, e) => total + e.key.precio * e.value,
+                    );
+                    final prendasCliente = pedido.values.fold<int>(
+                      0,
+                      (s, c) => s + c,
+                    );
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFAF8FC),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppTheme.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                nombreCliente,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: AppTheme.dark,
+                                ),
+                              ),
+                              Text(
+                                '\$${subtotalCliente.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: AppTheme.violet,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            pedido.entries
+                                .map(
+                                  (e) =>
+                                      '${e.key.nombre} x${e.value} (\$${(e.key.precio * e.value).toStringAsFixed(0)})',
+                                )
+                                .join(' Â· '),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.muted,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '$prendasCliente ${prendasCliente == 1 ? 'prenda' : 'prendas'} agregadas',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF8E62D6),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                  const Divider(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Total a registrar',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: AppTheme.dark,
+                            ),
+                          ),
+                          Text(
+                            '$totalPrendas prendas Â· $totalClientes clientas',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        '\$${totalDinero.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.violet,
+                          fontSize: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Seguir editando'),
+            ),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.violet,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(Icons.done_all, size: 16),
+              label: Text(
+                'Registrar todas (\$${totalDinero.toStringAsFixed(0)})',
+              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmar != true || !mounted) return;
+
+    final batch = _db.batch();
+    final comprasRef = _db.collection('compras');
+
+    for (final entradaCliente in pedidosValidos) {
+      final cId = entradaCliente.key;
+      final nombreCliente = _nombresClientesCache[cId] ?? 'Clienta';
+      final pedido = entradaCliente.value;
+
+      for (final entrada in pedido.entries) {
+        final docRef = comprasRef.doc();
+        final subtotal = entrada.key.precio * entrada.value;
+
+        batch.set(docRef, {
+          'clienteId': cId,
+          'clienteNombre': nombreCliente,
+          'prenda': entrada.key.nombre,
+          'prendaNombre': entrada.key.nombre,
+          'precio': entrada.key.precio,
+          'cantidad': entrada.value,
+          'total': subtotal,
+          'subtotal': subtotal,
+          'fecha': FieldValue.serverTimestamp(),
+        });
+      }
+    }
+
+    await batch.commit();
+
+    if (mounted) {
+      setState(() {
+        _pedidosPendientes.clear();
+      });
+      _mostrarMensaje(
+        'âœ… Se registraron $totalPrendas prendas en $totalClientes clientas por \$${totalDinero.toStringAsFixed(2)}.',
+      );
     }
   }
 
@@ -224,7 +495,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'REGISTRO RÁPIDO',
+              'REGISTRO RÃPIDO',
               style: TextStyle(
                 fontSize: 10,
                 letterSpacing: 1.5,
@@ -244,41 +515,45 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
           ],
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 14),
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.pink.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.circle, color: Colors.pinkAccent, size: 8),
-                    SizedBox(width: 5),
-                    Text(
-                      'EN VIVO',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.pink,
-                        fontWeight: FontWeight.bold,
-                      ),
+          if (_hayPedidosPendientes)
+            Padding(
+              padding: const EdgeInsets.only(right: 14),
+              child: Center(
+                child: FilledButton.icon(
+                  onPressed: _registrarTodasLasVentas,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF6C4AB6),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 7,
                     ),
-                  ],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  icon: const Icon(Icons.done_all, size: 16),
+                  label: Text(
+                    'Guardar todo ($_totalPrendasPendientesGlobal)',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: _db.collection('clientes').snapshots(),
         builder: (context, snapClientes) {
           final docsClientes = snapClientes.data?.docs ?? [];
+          for (final doc in docsClientes) {
+            final data = doc.data() as Map<String, dynamic>;
+            _nombresClientesCache[doc.id] = data['nombre'] ?? 'Clienta';
+          }
 
           return StreamBuilder<QuerySnapshot>(
             stream: _db.collection('prendas').where('activa', isEqualTo: true).snapshots(),
@@ -292,7 +567,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
                 builder: (context, snapCompras) {
                   final docsCompras = snapCompras.data?.docs ?? [];
 
-                  // Total de prendas y compras históricas por cliente
+                  // Total de prendas y compras histÃ³ricas por cliente
                   final prendasHistoricas = <String, int>{};
                   final totalHistorico = <String, double>{};
                   for (final doc in docsCompras) {
@@ -333,7 +608,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
                         child: TextField(
                           controller: _buscadorController,
                           decoration: InputDecoration(
-                            hintText: 'Buscar clienta por nombre o teléfono',
+                            hintText: 'Buscar clienta por nombre o telÃ©fono',
                             prefixIcon: const Icon(Icons.search),
                             suffixIcon: _busqueda.isNotEmpty
                                 ? IconButton(
@@ -383,7 +658,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
                             ),
                             const SizedBox(height: 10),
                             if (prendasActivas.isEmpty)
-                              const Text('No hay prendas activas en el catálogo.')
+                              const Text('No hay prendas activas en el catÃ¡logo.')
                             else
                               SizedBox(
                                 height: 58,
@@ -434,7 +709,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
                                               const SizedBox(height: 4),
                                               Text(
                                                 '+\$${prenda.precio.toStringAsFixed(0)}'
-                                                '${cantidad > 0 ? ' · $cantidad' : ''}',
+                                                '${cantidad > 0 ? ' Â· $cantidad' : ''}',
                                                 style: const TextStyle(
                                                   fontSize: 10,
                                                   color: AppTheme.violet,
@@ -610,10 +885,23 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
                                                             ),
                                                           ),
                                                         ),
-                                                        const Icon(
-                                                          Icons.chevron_right,
-                                                          size: 17,
-                                                          color: AppTheme.violet,
+                                                        InkWell(
+                                                          onTap: pedido.isNotEmpty
+                                                              ? () => _verResumenCliente(
+                                                                    id,
+                                                                    nombre,
+                                                                  )
+                                                              : null,
+                                                          borderRadius:
+                                                              BorderRadius.circular(12),
+                                                          child: const Padding(
+                                                            padding: EdgeInsets.all(2),
+                                                            child: Icon(
+                                                              Icons.chevron_right,
+                                                              size: 19,
+                                                              color: AppTheme.violet,
+                                                            ),
+                                                          ),
                                                         ),
                                                       ],
                                                     ),
@@ -665,6 +953,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
                                                                   onTap: () =>
                                                                       _quitarPrenda(
                                                                         entrada.key,
+                                                                        id,
                                                                       ),
                                                                   child: const Padding(
                                                                     padding: EdgeInsets.all(
@@ -724,10 +1013,12 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      _clienteSeleccionadoNombre.isEmpty
-                                          ? 'Selecciona una clienta'
-                                          : 'Total de '
-                                                '${_clienteSeleccionadoNombre.split(' ').first}',
+                                      _totalClientesConPedidos > 1
+                                          ? 'Total Live ($_totalClientesConPedidos clientas)'
+                                          : (_clienteSeleccionadoNombre.isEmpty
+                                              ? 'Selecciona una clienta'
+                                              : 'Total de '
+                                                  '${_clienteSeleccionadoNombre.split(' ').first}'),
                                       style: const TextStyle(
                                         fontSize: 11,
                                         color: Colors.white70,
@@ -735,51 +1026,91 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
                                     ),
                                     const SizedBox(height: 3),
                                     Text(
-                                      '\$${totalActual.toStringAsFixed(2)}',
+                                      '\$${(_totalClientesConPedidos > 1 ? _totalDineroPendienteGlobal : totalActual).toStringAsFixed(2)}',
                                       style: const TextStyle(
                                         fontSize: 21,
                                         fontWeight: FontWeight.bold,
                                         color: Colors.white,
                                       ),
                                     ),
-                                    if (cantidadActual > 0)
+                                    if (_totalPrendasPendientesGlobal > 0)
                                       Text(
-                                        '$cantidadActual prendas nuevas',
+                                        _totalClientesConPedidos > 1
+                                            ? '$_totalPrendasPendientesGlobal prendas nuevas en total'
+                                            : '$cantidadActual prendas nuevas',
                                         style: const TextStyle(
                                           fontSize: 10,
-                                          color: Colors.white70,
+                                          color: Color(0xFFE9A6C8),
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                   ],
                                 ),
                               ),
-                              FilledButton(
-                                onPressed: _verResumen,
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: const Color(0xFF7546C2),
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 13,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      'Ver resumen',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (_totalClientesConPedidos > 1 && cantidadActual > 0 && cId != null) ...[
+                                    IconButton(
+                                      tooltip:
+                                          'Ver pedido de ${_clienteSeleccionadoNombre.split(' ').first}',
+                                      icon: const Icon(
+                                        Icons.person_outline,
+                                        color: Colors.white70,
+                                        size: 20,
+                                      ),
+                                      onPressed: () => _verResumenCliente(
+                                        cId,
+                                        _clienteSeleccionadoNombre,
                                       ),
                                     ),
-                                    SizedBox(width: 8),
-                                    Icon(Icons.chevron_right, size: 18),
+                                    const SizedBox(width: 4),
                                   ],
-                                ),
+                                  FilledButton(
+                                    onPressed: _hayPedidosPendientes
+                                        ? _registrarTodasLasVentas
+                                        : (_pedidoActual.isNotEmpty && cId != null
+                                            ? () => _verResumenCliente(
+                                                  cId,
+                                                  _clienteSeleccionadoNombre,
+                                                )
+                                            : null),
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: const Color(0xFF7546C2),
+                                      foregroundColor: Colors.white,
+                                      disabledBackgroundColor: Colors.white12,
+                                      disabledForegroundColor: Colors.white38,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 13,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          _totalClientesConPedidos > 1
+                                              ? Icons.done_all
+                                              : Icons.check,
+                                          size: 18,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          _totalClientesConPedidos > 1
+                                              ? 'Registrar todo'
+                                              : 'Registrar venta',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
