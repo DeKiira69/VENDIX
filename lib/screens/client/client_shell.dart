@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'client_home_screen.dart';
 import 'client_purchases_screen.dart';
@@ -14,6 +15,7 @@ class ClientShell extends StatefulWidget {
 
 class _ClientShellState extends State<ClientShell> {
   int _seleccion = 0;
+  DateTime? _ultimoToqueAtras;
 
   final List<Widget> _pantallas = const [
     ClientHomeScreen(),
@@ -24,38 +26,68 @@ class _ClientShellState extends State<ClientShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F6FA),
-      body: IndexedStack(index: _seleccion, children: _pantallas),
-      bottomNavigationBar: NavigationBar(
-        backgroundColor: Colors.white,
-        indicatorColor: const Color(0xFFF0E8FC),
-        selectedIndex: _seleccion,
-        onDestinationSelected: (indice) {
-          setState(() => _seleccion = indice);
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Inicio',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long),
-            label: 'Compras',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            selectedIcon: Icon(Icons.account_balance_wallet),
-            label: 'Saldo',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Perfil',
-          ),
-        ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+
+        // 1. Si no estamos en Inicio, volver a la primera pestaña
+        if (_seleccion != 0) {
+          setState(() => _seleccion = 0);
+          return;
+        }
+
+        // 2. Si ya estamos en Inicio, confirmar salida
+        final ahora = DateTime.now();
+        if (_ultimoToqueAtras == null ||
+            ahora.difference(_ultimoToqueAtras!) > const Duration(seconds: 2)) {
+          _ultimoToqueAtras = ahora;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Presiona atrás de nuevo para salir de la aplicación'),
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+
+        // 3. Salida limpia al sistema operativo sin congelar la app
+        await SystemNavigator.pop();
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8F6FA),
+        body: IndexedStack(index: _seleccion, children: _pantallas),
+        bottomNavigationBar: NavigationBar(
+          backgroundColor: Colors.white,
+          indicatorColor: const Color(0xFFF0E8FC),
+          selectedIndex: _seleccion,
+          onDestinationSelected: (indice) {
+            setState(() => _seleccion = indice);
+          },
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'Inicio',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.receipt_long_outlined),
+              selectedIcon: Icon(Icons.receipt_long),
+              label: 'Compras',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.account_balance_wallet_outlined),
+              selectedIcon: Icon(Icons.account_balance_wallet),
+              label: 'Saldo',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'Perfil',
+            ),
+          ],
+        ),
       ),
     );
   }

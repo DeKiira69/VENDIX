@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -26,6 +27,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _ocultarContrasena = true;
   bool _recordarSesion = true;
   bool _cargando = false;
+  DateTime? _ultimoToqueAtras;
 
   static const Color violeta = Color(0xFF6C4AB6);
   static const Color rosa = Color(0xFFE9A6C8);
@@ -684,8 +686,29 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+
+        final ahora = DateTime.now();
+        if (_ultimoToqueAtras == null ||
+            ahora.difference(_ultimoToqueAtras!) > const Duration(seconds: 2)) {
+          _ultimoToqueAtras = ahora;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Presiona atrás de nuevo para salir de la aplicación'),
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+
+        await SystemNavigator.pop();
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -989,7 +1012,8 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }
 

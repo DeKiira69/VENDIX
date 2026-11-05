@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../theme/app_theme.dart';
 import '../../models/administrador_model.dart';
@@ -20,6 +21,7 @@ class AdminHomeScreen extends StatefulWidget {
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
   int _footerIndex = 0; // 0 = Inicio, 1 = Ventas, 2 = Secretarios, 3 = Más
+  DateTime? _ultimoToqueAtras;
 
   String _saludo() {
     final hora = DateTime.now().hour;
@@ -30,58 +32,89 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      body: SafeArea(
-        child: _footerIndex == 0
-            ? _buildHomeContent()
-            : _footerIndex == 1
-                ? QuickSalesScreen(onVolver: () => setState(() => _footerIndex = 0))
-                : AdminMoreScreen(
-                    admin: widget.admin,
-                    onVolver: () => setState(() => _footerIndex = 0),
-                  ),
-      ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+
+        // 1. Si el usuario está en otra pestaña (Ventas Live, Secretarios, Más),
+        // regresar suavemente a la pestaña 'Inicio'
+        if (_footerIndex != 0) {
+          setState(() => _footerIndex = 0);
+          return;
+        }
+
+        // 2. Si ya está en 'Inicio', solicitar doble pulsación para salir limpiamente
+        final ahora = DateTime.now();
+        if (_ultimoToqueAtras == null ||
+            ahora.difference(_ultimoToqueAtras!) > const Duration(seconds: 2)) {
+          _ultimoToqueAtras = ahora;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Presiona atrás de nuevo para salir de la aplicación'),
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
             ),
-          ],
+          );
+          return;
+        }
+
+        // 3. Salida limpia al sistema operativo evitando pantalla negra o congelamiento
+        await SystemNavigator.pop();
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.background,
+        body: SafeArea(
+          child: _footerIndex == 0
+              ? _buildHomeContent()
+              : _footerIndex == 1
+                  ? QuickSalesScreen(onVolver: () => setState(() => _footerIndex = 0))
+                  : AdminMoreScreen(
+                      admin: widget.admin,
+                      onVolver: () => setState(() => _footerIndex = 0),
+                    ),
         ),
-        child: NavigationBar(
-          backgroundColor: Colors.white,
-          indicatorColor: const Color(0xFFF0E8FC),
-          selectedIndex: _footerIndex,
-          onDestinationSelected: (indice) {
-            setState(() => _footerIndex = indice);
-          },
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home, color: AppTheme.violet),
-              label: 'Inicio',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.flash_on_outlined),
-              selectedIcon: Icon(Icons.flash_on, color: AppTheme.violet),
-              label: 'Ventas Live',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.badge_outlined),
-              selectedIcon: Icon(Icons.badge, color: AppTheme.violet),
-              label: 'Secretarios',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person, color: AppTheme.violet),
-              label: 'Perfil / Más',
-            ),
-          ],
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
+          child: NavigationBar(
+            backgroundColor: Colors.white,
+            indicatorColor: const Color(0xFFF0E8FC),
+            selectedIndex: _footerIndex,
+            onDestinationSelected: (indice) {
+              setState(() => _footerIndex = indice);
+            },
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home, color: AppTheme.violet),
+                label: 'Inicio',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.flash_on_outlined),
+                selectedIcon: Icon(Icons.flash_on, color: AppTheme.violet),
+                label: 'Ventas Live',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.badge_outlined),
+                selectedIcon: Icon(Icons.badge, color: AppTheme.violet),
+                label: 'Secretarios',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person, color: AppTheme.violet),
+                label: 'Perfil / Más',
+              ),
+            ],
+          ),
         ),
       ),
     );
