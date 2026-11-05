@@ -57,6 +57,9 @@ class GoogleAuthService {
     String? apellido,
     String telefono = '',
     String direccion = '',
+    String adminId = '',
+    String secretarioId = '',
+    String codigoLive = '',
   }) async {
     final lote = _db.batch();
     final uid = usuario.uid;
@@ -77,7 +80,7 @@ class GoogleAuthService {
     if (rol == 'cliente') {
       // 1. Guardar en 'usuarios'
       final docUsuario = _db.collection('usuarios').doc(uid);
-      lote.set(docUsuario, {
+      final Map<String, dynamic> datosUsuario = {
         'nombre': finalNombre,
         'apellido': finalApellido,
         'correo': email,
@@ -89,11 +92,15 @@ class GoogleAuthService {
         'fotoUrl': fotoUrl,
         'creadoEn': FieldValue.serverTimestamp(),
         'metodo_registro': 'google',
-      }, SetOptions(merge: true));
+      };
+      if (adminId.isNotEmpty) datosUsuario['adminId'] = adminId;
+      if (secretarioId.isNotEmpty) datosUsuario['secretarioId'] = secretarioId;
+      if (codigoLive.isNotEmpty) datosUsuario['codigoLive'] = codigoLive;
+      lote.set(docUsuario, datosUsuario, SetOptions(merge: true));
 
       // 2. Guardar en 'clientes'
       final docCliente = _db.collection('clientes').doc(uid);
-      lote.set(docCliente, {
+      final Map<String, dynamic> datosCliente = {
         'nombre': nombreCompleto,
         'telefono': telefono.trim(),
         'direccion': direccion.trim(),
@@ -102,7 +109,11 @@ class GoogleAuthService {
         'fotoUrl': fotoUrl,
         'creadoEn': FieldValue.serverTimestamp(),
         'metodo_registro': 'google',
-      }, SetOptions(merge: true));
+      };
+      if (adminId.isNotEmpty) datosCliente['adminId'] = adminId;
+      if (secretarioId.isNotEmpty) datosCliente['secretarioId'] = secretarioId;
+      if (codigoLive.isNotEmpty) datosCliente['codigoLive'] = codigoLive;
+      lote.set(docCliente, datosCliente, SetOptions(merge: true));
 
       // 3. Foto de perfil
       if (fotoUrl.isNotEmpty) {

@@ -14,6 +14,7 @@ class RegisterClientScreen extends StatefulWidget {
 
 class _RegisterClientScreenState extends State<RegisterClientScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _codigoLive = TextEditingController();
   final _nombre = TextEditingController();
   final _telefono = TextEditingController();
   final _correo = TextEditingController();
@@ -29,6 +30,7 @@ class _RegisterClientScreenState extends State<RegisterClientScreen> {
 
   @override
   void dispose() {
+    _codigoLive.dispose();
     _nombre.dispose();
     _telefono.dispose();
     _correo.dispose();
@@ -43,18 +45,57 @@ class _RegisterClientScreenState extends State<RegisterClientScreen> {
 
     if (!_formKey.currentState!.validate() || _cargando) return;
 
+    final codigoIngresado = _codigoLive.text.trim().toUpperCase();
+    if (codigoIngresado.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('El código del Live es obligatorio.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() => _cargando = true);
 
-    User? usuarioCreado;
-
     try {
+      final db = FirebaseFirestore.instance;
+
+      // 1. Validar que el código del live existe en un secretario
+      final querySec = await db
+          .collection('secretarios')
+          .where('codigoLive', isEqualTo: codigoIngresado)
+          .limit(1)
+          .get();
+
+      if (querySec.docs.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Código no válido o no activo. Solicítalo en la transmisión del Live.',
+              ),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 4),
+            ),
+          );
+          setState(() => _cargando = false);
+        }
+        return;
+      }
+
+      final dataSec = querySec.docs.first.data();
+      final secretarioId = querySec.docs.first.id;
+      final adminId = dataSec['adminId']?.toString() ?? '';
+
+      // 2. Crear usuario en Firebase Authentication
       final credencial = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(
             email: _correo.text.trim(),
             password: _contrasena.text,
           );
 
-      usuarioCreado = credencial.user;
+      final usuarioCreado = credencial.user;
 
       if (usuarioCreado == null) {
         throw Exception('Firebase no devolvió la cuenta creada.');
@@ -66,7 +107,6 @@ class _RegisterClientScreenState extends State<RegisterClientScreen> {
       final telefono = _telefono.text.trim();
       final direccion = _direccion.text.trim();
 
-      final db = FirebaseFirestore.instance;
       final lote = db.batch();
 
       lote.set(db.collection('usuarios').doc(uid), {
@@ -76,6 +116,9 @@ class _RegisterClientScreenState extends State<RegisterClientScreen> {
         'telefono': telefono,
         'direccion': direccion,
         'rol': 'cliente',
+        'adminId': adminId,
+        'secretarioId': secretarioId,
+        'codigoLive': codigoIngresado,
         'creadoEn': FieldValue.serverTimestamp(),
       });
 
@@ -86,6 +129,9 @@ class _RegisterClientScreenState extends State<RegisterClientScreen> {
         'correo': email,
         'telefono': telefono,
         'direccion': direccion,
+        'adminId': adminId,
+        'secretarioId': secretarioId,
+        'codigoLive': codigoIngresado,
         'creadoEn': FieldValue.serverTimestamp(),
       });
 
@@ -125,7 +171,7 @@ class _RegisterClientScreenState extends State<RegisterClientScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al guardar perfil: $e'),
+            content: Text('Error al registrar: $e'),
             duration: const Duration(seconds: 4),
           ),
         );
@@ -169,6 +215,7 @@ class _RegisterClientScreenState extends State<RegisterClientScreen> {
         : (partes.isNotEmpty ? partes.first : '');
     final apellidoDefecto = partes.length > 1 ? partes.sublist(1).join(' ') : '';
 
+    final codigoLiveCtrl = TextEditingController(text: _codigoLive.text.trim().toUpperCase());
     final nombreCtrl = TextEditingController(text: nombreDefecto);
     final apellidoCtrl = TextEditingController(text: apellidoDefecto);
     final direccionCtrl = TextEditingController(text: _direccion.text.trim());
@@ -225,6 +272,64 @@ class _RegisterClientScreenState extends State<RegisterClientScreen> {
                     style: const TextStyle(fontSize: 12, color: Color(0xFF81798D)),
                   ),
                   const SizedBox(height: 20),
+
+                  // Código del Live Obligatorio
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1EAFE),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFDCCBFA)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.vpn_key_outlined, size: 16, color: violeta),
+                            SizedBox(width: 6),
+                            Text(
+                              'CÓDIGO DEL LIVE (OBLIGATORIO)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: violeta,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        TextFormField(
+                          controller: codigoLiveCtrl,
+                          textCapitalization: TextCapitalization.characters,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2,
+                            color: violeta,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Ej. VX-849',
+                            hintStyle: const TextStyle(letterSpacing: 1),
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(color: Color(0xFFDCCBFA)),
+                            ),
+                          ),
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Ingresa el código del Live'
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
 
                   // Nombre
                   const Text('Nombre', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
@@ -313,6 +418,35 @@ class _RegisterClientScreenState extends State<RegisterClientScreen> {
                       ),
                       onPressed: () async {
                         if (!formKey.currentState!.validate()) return;
+
+                        final cod = codigoLiveCtrl.text.trim().toUpperCase();
+
+                        // Validar código contra 'secretarios'
+                        final querySec = await FirebaseFirestore.instance
+                            .collection('secretarios')
+                            .where('codigoLive', isEqualTo: cod)
+                            .limit(1)
+                            .get();
+
+                        if (querySec.docs.isEmpty) {
+                          if (bottomCtx.mounted) {
+                            ScaffoldMessenger.of(bottomCtx).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Código no válido o no activo. Solicítalo en la transmisión del Live.',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                          return;
+                        }
+
+                        final dataSec = querySec.docs.first.data();
+                        final secId = querySec.docs.first.id;
+                        final admId = dataSec['adminId']?.toString() ?? '';
+
+                        if (!bottomCtx.mounted) return;
                         Navigator.pop(bottomCtx);
                         setState(() => _cargando = true);
                         try {
@@ -323,6 +457,9 @@ class _RegisterClientScreenState extends State<RegisterClientScreen> {
                             apellido: apellidoCtrl.text.trim(),
                             direccion: direccionCtrl.text.trim(),
                             telefono: telefonoCtrl.text.trim(),
+                            adminId: admId,
+                            secretarioId: secId,
+                            codigoLive: cod,
                           );
 
                           if (!mounted) return;
@@ -420,6 +557,81 @@ class _RegisterClientScreenState extends State<RegisterClientScreen> {
                         style: TextStyle(color: Color(0xFF81798D), height: 1.5),
                       ),
                       const SizedBox(height: 25),
+
+                      // Tarjeta de Código del Live (Obligatorio)
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1EAFE),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFDCCBFA), width: 1.2),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.vpn_key_outlined, size: 16, color: violeta),
+                                SizedBox(width: 6),
+                                Text(
+                                  'CÓDIGO DEL LIVE (OBLIGATORIO)',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: violeta,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Pídelo al operador durante la transmisión en vivo.',
+                              style: TextStyle(fontSize: 11, color: Color(0xFF6B617A)),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _codigoLive,
+                              textCapitalization: TextCapitalization.characters,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 2,
+                                fontSize: 16,
+                                color: violeta,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'Ej. VX-849',
+                                hintStyle: const TextStyle(letterSpacing: 1, fontSize: 14),
+                                filled: true,
+                                fillColor: Colors.white,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 13,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFFDCCBFA)),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFFDCCBFA)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: violeta, width: 1.5),
+                                ),
+                              ),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return 'Ingresa el código del Live para continuar.';
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
 
                       const Text('Nombre completo', style: TextStyle(fontWeight: FontWeight.w600)),
                       const SizedBox(height: 7),

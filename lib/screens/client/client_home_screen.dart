@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -125,6 +126,7 @@ class ClientHomeScreen extends StatelessWidget {
           }
 
           final clienteId = cliente['id'] as String;
+          final adminId = cliente['adminId']?.toString() ?? '';
           final nombre = (cliente['nombre'] ?? 'Cliente').toString();
           final nombres = nombre.trim().split(RegExp(r'\s+'));
           final saludo = nombres.isNotEmpty ? nombres.first : 'Cliente';
@@ -270,6 +272,117 @@ class ClientHomeScreen extends StatelessWidget {
                           ),
                         ],
                       ),
+                      if (adminId.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        FutureBuilder<DocumentSnapshot>(
+                          future: FirebaseFirestore.instance
+                              .collection('Administradores')
+                              .doc(adminId)
+                              .get(),
+                          builder: (context, snapAdmin) {
+                            final dataAdmin =
+                                snapAdmin.data?.data() as Map<String, dynamic>?;
+                            final nombreAdmin =
+                                dataAdmin?['nombre']?.toString() ??
+                                dataAdmin?['negocio']?.toString() ??
+                                'Emprendimiento Oficial';
+                            final telefonoAdmin =
+                                dataAdmin?['telefono']?.toString() ?? '';
+
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: const Color(0xFFE5DCF5),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: violeta.withValues(alpha: 0.04),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(9),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1EAFE),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.storefront_rounded,
+                                      color: violeta,
+                                      size: 22,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'TIENDA / EMPRENDEDOR',
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                            color: violeta,
+                                            letterSpacing: 0.8,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          nombreAdmin,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: oscuro,
+                                          ),
+                                        ),
+                                        if (telefonoAdmin.isNotEmpty) ...[
+                                          const SizedBox(height: 1),
+                                          Text(
+                                            'Contacto: $telefonoAdmin',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.black54,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1EAFE),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Text(
+                                      'Conectado',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: violeta,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                       const SizedBox(height: 22),
 
                       Container(

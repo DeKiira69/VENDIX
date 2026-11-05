@@ -1,5 +1,9 @@
+import 'dart:math';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../services/client_service.dart';
 import '../../services/perfil_foto_service.dart';
@@ -12,6 +16,49 @@ import 'payments_screen.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
+
+  static String _generarCodigoLive() {
+    const letras = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const numeros = '23456789';
+    final rnd = Random();
+    final prefijo = String.fromCharCodes(
+      Iterable.generate(3, (_) => letras.codeUnitAt(rnd.nextInt(letras.length))),
+    );
+    final sufijo = String.fromCharCodes(
+      Iterable.generate(3, (_) => numeros.codeUnitAt(rnd.nextInt(numeros.length))),
+    );
+    return '$prefijo-$sufijo';
+  }
+
+  static Future<void> _generarOGuardarCodigo(
+    BuildContext context,
+    String uid,
+  ) async {
+    if (uid.isEmpty) return;
+    final nuevoCodigo = _generarCodigoLive();
+    final db = FirebaseFirestore.instance;
+    final batch = db.batch();
+
+    batch.set(db.collection('secretarios').doc(uid), {
+      'codigoLive': nuevoCodigo,
+      'codigoActualizadoEn': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    batch.set(db.collection('usuarios').doc(uid), {
+      'codigoLive': nuevoCodigo,
+    }, SetOptions(merge: true));
+
+    await batch.commit();
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Código de Live generado: $nuevoCodigo'),
+        backgroundColor: AppTheme.violet,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -100,6 +147,208 @@ class MoreScreen extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // Tarjeta de Código de Acceso para el Live
+          StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('secretarios')
+                .doc(usuarioId)
+                .snapshots(),
+            builder: (context, snapshot) {
+              final data = snapshot.data?.data() as Map<String, dynamic>?;
+              final codigoActual = data?['codigoLive']?.toString() ?? '';
+
+              return Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: codigoActual.isNotEmpty
+                        ? AppTheme.violet.withValues(alpha: 0.4)
+                        : AppTheme.border,
+                    width: codigoActual.isNotEmpty ? 1.5 : 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0E9FC),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.vpn_key_outlined,
+                            size: 16,
+                            color: AppTheme.violet,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'CÓDIGO DE ACCESO PARA EL LIVE',
+                          style: TextStyle(
+                            fontSize: 10,
+                            letterSpacing: 1.1,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.violet,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (codigoActual.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.pink.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.circle, color: Colors.pinkAccent, size: 7),
+                                SizedBox(width: 4),
+                                Text(
+                                  'ACTIVO',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.pink,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    if (codigoActual.isEmpty) ...[
+                      const Text(
+                        'Genera un código único para que tus clientas puedan registrarse en la app durante tu transmisión en vivo.',
+                        style: TextStyle(fontSize: 12, color: AppTheme.muted),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () => _generarOGuardarCodigo(context, usuarioId),
+                          icon: const Icon(Icons.auto_awesome, size: 16),
+                          label: const Text('Generar código del Live'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppTheme.violet,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Código actual para tus clientas:',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppTheme.muted,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                codigoActual,
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 2.5,
+                                  color: AppTheme.violet,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              IconButton.filledTonal(
+                                onPressed: () {
+                                  Clipboard.setData(
+                                    ClipboardData(text: codigoActual),
+                                  );
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Código copiado al portapapeles'),
+                                      duration: Duration(seconds: 2),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.copy, size: 18),
+                                tooltip: 'Copiar código',
+                                style: IconButton.styleFrom(
+                                  backgroundColor: const Color(0xFFF1EAFE),
+                                  foregroundColor: AppTheme.violet,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              IconButton.outlined(
+                                onPressed: () async {
+                                  final confirmar = await showDialog<bool>(
+                                    context: context,
+                                    builder: (dlgCtx) => AlertDialog(
+                                      title: const Text('¿Regenerar código?'),
+                                      content: const Text(
+                                        'Se generará un nuevo código. Las clientas necesitarán el nuevo código para registrarse.',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(dlgCtx, false),
+                                          child: const Text('Cancelar'),
+                                        ),
+                                        FilledButton(
+                                          onPressed: () =>
+                                              Navigator.pop(dlgCtx, true),
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor: AppTheme.violet,
+                                          ),
+                                          child: const Text('Regenerar'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirmar == true && context.mounted) {
+                                    await _generarOGuardarCodigo(context, usuarioId);
+                                  }
+                                },
+                                icon: const Icon(Icons.refresh, size: 18),
+                                tooltip: 'Generar nuevo código',
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            },
           ),
 
           const SizedBox(height: 14),
