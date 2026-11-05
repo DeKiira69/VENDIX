@@ -132,5 +132,5 @@ flutter run
 ## 📄 Licencia y Créditos
 
 Desarrollado para la gestión moderna del comercio digital y transmisiones en vivo.  
-**Autor:** [DeKiira69](https://github.com/DeKiira69) & Antigravity AI  
+**Autor:** [DeKiira69](https://github.com/DeKiira69) 
 Todos los derechos reservados © 2026.
