@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
@@ -20,6 +21,13 @@ class AdminHomeScreen extends StatefulWidget {
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
   int _footerIndex = 0; // 0 = Inicio, 1 = Ventas, 2 = Secretarios, 3 = Más
+
+  String _saludo() {
+    final hora = DateTime.now().hour;
+    if (hora < 12) return 'Buenos días';
+    if (hora < 19) return 'Buenas tardes';
+    return 'Buenas noches';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,6 +86,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 
   Widget _buildHomeContent() {
+    final db = FirebaseFirestore.instance;
+    final hoy = DateTime.now();
+    final inicioHoy = DateTime(hoy.year, hoy.month, hoy.day);
+    final finHoy = inicioHoy.add(const Duration(days: 1));
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 20),
       children: [
@@ -98,7 +111,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   color: const Color(0xFFF0E9FC),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.arrow_back_ios_new, size: 16, color: AppTheme.violet),
+                child: const Icon(
+                  Icons.arrow_back_ios_new,
+                  size: 16,
+                  color: AppTheme.violet,
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -116,7 +133,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     ),
                   ),
                   Text(
-                    'Buenas tardes, ${widget.admin.nombre}',
+                    '${_saludo()}, ${widget.admin.nombre}',
                     style: const TextStyle(
                       color: AppTheme.dark,
                       fontSize: 18,
@@ -142,82 +159,192 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         ),
         const SizedBox(height: 16),
 
-        // Live Banner
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF0E9FC),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: AppTheme.green,
-                  shape: BoxShape.circle,
-                ),
+        // Live Banner en Tiempo Real desde Firestore
+        StreamBuilder<QuerySnapshot>(
+          stream: db
+              .collection('jornadas')
+              .where('estado', isEqualTo: 'activa')
+              .snapshots(),
+          builder: (context, snapJornadas) {
+            final hayLive = snapJornadas.data?.docs.isNotEmpty ?? false;
+            String detalleLive = 'No hay jornada en curso';
+
+            if (hayLive) {
+              final primerDoc =
+                  snapJornadas.data!.docs.first.data() as Map<String, dynamic>;
+              detalleLive = primerDoc['nombre']?.toString() ?? 'TikTok & FB Live';
+            }
+
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: hayLive
+                    ? const Color(0xFFF0E9FC)
+                    : const Color(0xFFF5F3F8),
+                borderRadius: BorderRadius.circular(14),
               ),
-              const SizedBox(width: 8),
-              const Text(
-                'EN VIVO AHORA',
-                style: TextStyle(
-                  color: AppTheme.violet,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 11,
-                  letterSpacing: 0.5,
-                ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: hayLive ? AppTheme.green : AppTheme.muted,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    hayLive ? 'EN VIVO AHORA' : 'SIN LIVE ACTIVO',
+                    style: TextStyle(
+                      color: hayLive ? AppTheme.violet : AppTheme.muted,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    detalleLive,
+                    style: const TextStyle(color: AppTheme.muted, fontSize: 11),
+                  ),
+                ],
               ),
-              const Spacer(),
-              const Text(
-                'TikTok & FB Live',
-                style: TextStyle(color: AppTheme.muted, fontSize: 11),
-              ),
-            ],
-          ),
+            );
+          },
         ),
         const SizedBox(height: 18),
 
-        // KPIs en Grid 2x2
-        Row(
-          children: [
-            Expanded(
-              child: _buildMetricCard(
-                titulo: 'Total Vendido Hoy',
-                valor: '\$1,240',
-                colorValor: AppTheme.dark,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildMetricCard(
-                titulo: 'Prendas Vendidas',
-                valor: '48',
-                colorValor: AppTheme.violet,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildMetricCard(
-                titulo: 'Cobrado (Efectivo/Transf)',
-                valor: '\$890',
-                colorValor: AppTheme.green,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildMetricCard(
-                titulo: 'Por Cobrar',
-                valor: '\$350',
-                colorValor: const Color(0xFFD84A75),
-              ),
-            ),
-          ],
+        // KPIs en Grid 2x2 calculados 100% en tiempo real desde Firestore
+        StreamBuilder<QuerySnapshot>(
+          stream: db.collection('clientes').snapshots(),
+          builder: (context, snapClientes) {
+            final misClientesIds = (snapClientes.data?.docs ?? [])
+                .where((d) {
+                  final data = d.data() as Map<String, dynamic>;
+                  return data['adminId'] == widget.admin.id;
+                })
+                .map((d) => d.id)
+                .toSet();
+
+            return StreamBuilder<QuerySnapshot>(
+              stream: db.collection('compras').snapshots(),
+              builder: (context, snapCompras) {
+                final docsCompras = snapCompras.data?.docs ?? [];
+
+                return StreamBuilder<QuerySnapshot>(
+                  stream: db.collection('pagos').snapshots(),
+                  builder: (context, snapPagos) {
+                    final docsPagos = snapPagos.data?.docs ?? [];
+
+                    double totalVendidoHoy = 0;
+                    int prendasVendidasHoy = 0;
+                    double totalVendidoHistorico = 0;
+
+                    for (final doc in docsCompras) {
+                      final d = doc.data() as Map<String, dynamic>;
+                      final cId = d['clienteId']?.toString() ?? '';
+                      final admId = d['adminId']?.toString() ?? '';
+
+                      // Pertenece a este admin si coincide adminId o si es de una de sus clientas
+                      final pertenece = admId == widget.admin.id ||
+                          misClientesIds.contains(cId);
+
+                      if (!pertenece) continue;
+
+                      final monto = (d['total'] ?? d['subtotal'] ?? 0).toDouble();
+                      final cant = (d['cantidad'] is num)
+                          ? (d['cantidad'] as num).toInt()
+                          : 1;
+
+                      totalVendidoHistorico += monto;
+
+                      final ts = d['fecha'];
+                      if (ts is Timestamp) {
+                        final fecha = ts.toDate();
+                        if (fecha.isAfter(inicioHoy) && fecha.isBefore(finHoy)) {
+                          totalVendidoHoy += monto;
+                          prendasVendidasHoy += cant;
+                        }
+                      }
+                    }
+
+                    double cobradoHoy = 0;
+                    double totalCobradoHistorico = 0;
+
+                    for (final doc in docsPagos) {
+                      final d = doc.data() as Map<String, dynamic>;
+                      final cId = d['clienteId']?.toString() ?? '';
+                      final admId = d['adminId']?.toString() ?? '';
+
+                      final pertenece = admId == widget.admin.id ||
+                          misClientesIds.contains(cId);
+
+                      if (!pertenece) continue;
+
+                      final monto = (d['monto'] ?? 0).toDouble();
+                      totalCobradoHistorico += monto;
+
+                      final ts = d['fecha'];
+                      if (ts is Timestamp) {
+                        final fecha = ts.toDate();
+                        if (fecha.isAfter(inicioHoy) && fecha.isBefore(finHoy)) {
+                          cobradoHoy += monto;
+                        }
+                      }
+                    }
+
+                    final saldoPorCobrar = (totalVendidoHistorico - totalCobradoHistorico);
+                    final porCobrar = saldoPorCobrar > 0.001 ? saldoPorCobrar : 0.0;
+
+                    return Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildMetricCard(
+                                titulo: 'Total Vendido Hoy',
+                                valor: '\$${totalVendidoHoy.toStringAsFixed(2)}',
+                                colorValor: AppTheme.dark,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildMetricCard(
+                                titulo: 'Prendas Vendidas',
+                                valor: '$prendasVendidasHoy',
+                                colorValor: AppTheme.violet,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildMetricCard(
+                                titulo: 'Cobrado (Efectivo/Transf)',
+                                valor: '\$${cobradoHoy.toStringAsFixed(2)}',
+                                colorValor: AppTheme.green,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildMetricCard(
+                                titulo: 'Por Cobrar',
+                                valor: '\$${porCobrar.toStringAsFixed(2)}',
+                                colorValor: const Color(0xFFD84A75),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+            );
+          },
         ),
         const SizedBox(height: 24),
 
@@ -313,31 +440,52 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             onTap: () {
               setState(() => _footerIndex = 2);
             },
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
             leading: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: const Color(0xFFFFA000),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.badge_outlined, color: Colors.white, size: 20),
+              child: const Icon(
+                Icons.badge_outlined,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
             title: const Text(
               'Gestión de Secretarios',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF5D4037)),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Color(0xFF5D4037),
+              ),
             ),
             subtitle: const Text(
               'Aprobar solicitudes y ver equipo activo',
-              style: TextStyle(fontSize: 10, color: Color(0xFF8D6E63), fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 10,
+                color: Color(0xFF8D6E63),
+                fontWeight: FontWeight.w600,
+              ),
             ),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Color(0xFFFFA000)),
+            trailing: const Icon(
+              Icons.arrow_forward_ios,
+              size: 14,
+              color: Color(0xFFFFA000),
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildMetricCard({required String titulo, required String valor, required Color colorValor}) {
+  Widget _buildMetricCard({
+    required String titulo,
+    required String valor,
+    required Color colorValor,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -352,7 +500,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           const SizedBox(height: 6),
           Text(
             valor,
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: colorValor),
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: colorValor,
+            ),
           ),
         ],
       ),
@@ -383,8 +535,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           ),
           child: Icon(icon, color: iconColor, size: 20),
         ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppTheme.muted),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+        ),
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+          size: 14,
+          color: AppTheme.muted,
+        ),
       ),
     );
   }
