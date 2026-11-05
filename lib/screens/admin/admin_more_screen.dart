@@ -1050,7 +1050,7 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                     controller: contrasenaController,
                     obscureText: true,
                     decoration: InputDecoration(
-                      hintText: 'Mínimo 6 caracteres',
+                      hintText: 'Mínimo 6 caracteres y 1 símbolo (@, #, \$...)',
                       filled: true,
                       fillColor: const Color(0xFFF7F7FA),
                       border: OutlineInputBorder(
@@ -1059,7 +1059,21 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                       ),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
-                    validator: (v) => (v == null || v.length < 6) ? 'Mínimo 6 caracteres' : null,
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) {
+                        return 'Ingresa una contraseña temporal.';
+                      }
+                      if (v.length < 6) {
+                        return 'Usa al menos 6 caracteres.';
+                      }
+                      if (!RegExp(r'[a-zA-Z0-9]').hasMatch(v)) {
+                        return 'Debe incluir caracteres alfanuméricos.';
+                      }
+                      if (!RegExp(r'[^a-zA-Z0-9]').hasMatch(v)) {
+                        return 'Debe incluir al menos un carácter especial (ej. @, #, \$, *, !).';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 20),
 

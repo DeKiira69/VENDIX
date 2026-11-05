@@ -40,6 +40,22 @@ class _RegisterClientScreenState extends State<RegisterClientScreen> {
     super.dispose();
   }
 
+  String? _validarContrasena(String? v) {
+    if (v == null || v.trim().isEmpty) {
+      return 'Ingresa una contraseña.';
+    }
+    if (v.length < 6) {
+      return 'Usa al menos 6 caracteres.';
+    }
+    if (!RegExp(r'[a-zA-Z0-9]').hasMatch(v)) {
+      return 'Debe incluir caracteres alfanuméricos (letras o números).';
+    }
+    if (!RegExp(r'[^a-zA-Z0-9]').hasMatch(v)) {
+      return 'Debe incluir al menos un carácter especial (ej. @, #, \$, *, !).';
+    }
+    return null;
+  }
+
   Future<void> _registrar() async {
     FocusScope.of(context).unfocus();
 
@@ -712,7 +728,7 @@ class _RegisterClientScreenState extends State<RegisterClientScreen> {
                         obscureText: _ocultar,
                         decoration:
                             _decoracion(
-                              'Mínimo 6 caracteres',
+                              'Mínimo 6 caracteres y 1 símbolo (@, #, \$...)',
                               Icons.lock_outline,
                             ).copyWith(
                               suffixIcon: IconButton(
@@ -726,12 +742,12 @@ class _RegisterClientScreenState extends State<RegisterClientScreen> {
                                 ),
                               ),
                             ),
-                        validator: (v) {
-                          if (v == null || v.length < 6) {
-                            return 'Usa al menos 6 caracteres.';
-                          }
-                          return null;
-                        },
+                        validator: _validarContrasena,
+                      ),
+                      const SizedBox(height: 5),
+                      const Text(
+                        'Debe contener mínimo 6 caracteres, letras/números y al menos un carácter especial (@, #, \$, *, !).',
+                        style: TextStyle(fontSize: 11, color: Colors.black54),
                       ),
                       const SizedBox(height: 16),
 
