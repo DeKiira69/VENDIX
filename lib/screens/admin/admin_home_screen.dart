@@ -9,6 +9,8 @@ import '../secretary/clients_screen.dart';
 import '../secretary/clothing_prices_screen.dart';
 import '../secretary/statistics_screen.dart';
 import 'admin_more_screen.dart';
+import 'admin_profile_screen.dart';
+import '../../services/perfil_foto_service.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   final AdministradorModel admin;
@@ -37,21 +39,21 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
 
-        // 1. Si el usuario est√° en otra pesta√±a (Ventas Live, Secretarios, M√°s),
-        // regresar suavemente a la pesta√±a 'Inicio'
+        // 1. Si el usuario est· en otra pestaÒa (Ventas Live, Secretarios, M·s),
+        // regresar suavemente a la pestaÒa 'Inicio'
         if (_footerIndex != 0) {
           setState(() => _footerIndex = 0);
           return;
         }
 
-        // 2. Si ya est√° en 'Inicio', solicitar doble pulsaci√≥n para salir limpiamente
+        // 2. Si ya est· en 'Inicio', solicitar doble pulsaciÛn para salir limpiamente
         final ahora = DateTime.now();
         if (_ultimoToqueAtras == null ||
             ahora.difference(_ultimoToqueAtras!) > const Duration(seconds: 2)) {
           _ultimoToqueAtras = ahora;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Presiona atr√°s de nuevo para salir de la aplicaci√≥n'),
+              content: Text('Presiona atr·s de nuevo para salir de la aplicaciÛn'),
               duration: Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
             ),
@@ -68,11 +70,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           child: _footerIndex == 0
               ? _buildHomeContent()
               : _footerIndex == 1
-                  ? QuickSalesScreen(onVolver: () => setState(() => _footerIndex = 0))
-                  : AdminMoreScreen(
-                      admin: widget.admin,
-                      onVolver: () => setState(() => _footerIndex = 0),
-                    ),
+                  ? const QuickSalesScreen()
+                  : _footerIndex == 2
+                      ? AdminMoreScreen(admin: widget.admin)
+                      : AdminProfileScreen(admin: widget.admin),
         ),
         bottomNavigationBar: Container(
           decoration: BoxDecoration(
@@ -111,7 +112,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               NavigationDestination(
                 icon: Icon(Icons.person_outline),
                 selectedIcon: Icon(Icons.person, color: AppTheme.violet),
-                label: 'Perfil / M√°s',
+                label: 'Perfil / M·s',
               ),
             ],
           ),
@@ -189,16 +190,33 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 ],
               ),
             ),
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: AppTheme.violet,
-              child: Text(
-                widget.admin.iniciales,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
+            InkWell(
+              onTap: () => setState(() => _footerIndex = 3),
+              borderRadius: BorderRadius.circular(20),
+              child: StreamBuilder<String?>(
+                stream: PerfilFotoService.fotoStream(widget.admin.id),
+                builder: (context, fotoSnap) {
+                  final foto = fotoSnap.data;
+                  if (foto != null && foto.isNotEmpty) {
+                    return CircleAvatar(
+                      radius: 20,
+                      backgroundColor: AppTheme.violet,
+                      backgroundImage: NetworkImage(foto),
+                    );
+                  }
+                  return CircleAvatar(
+                    radius: 20,
+                    backgroundColor: AppTheme.violet,
+                    child: Text(
+                      widget.admin.iniciales,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ],

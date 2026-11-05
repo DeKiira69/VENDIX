@@ -169,6 +169,48 @@ class GoogleAuthService {
           'actualizadoEn': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       }
+    } else if (rol == 'administrador' || rol == 'admin') {
+      // 1. Guardar en 'usuarios' como administrador activo
+      final docUsuario = _db.collection('usuarios').doc(uid);
+      lote.set(docUsuario, {
+        'uid': uid,
+        'nombre': finalNombre,
+        'apellido': finalApellido,
+        'correo': email,
+        'telefono': telefono.trim(),
+        'direccion': direccion.trim(),
+        'rol': 'administrador',
+        'estado': true,
+        'aprobado': true,
+        'fotoUrl': fotoUrl,
+        'creadoEn': FieldValue.serverTimestamp(),
+        'metodo_registro': 'google',
+      }, SetOptions(merge: true));
+
+      // 2. Guardar en 'Administradores'
+      final docAdmin = _db.collection('Administradores').doc(uid);
+      lote.set(docAdmin, {
+        'uid': uid,
+        'nombre': finalNombre,
+        'apellido': finalApellido,
+        'correo': email,
+        'telefono': telefono.trim(),
+        'estado': true,
+        'fotoUrl': fotoUrl,
+        'creadoEn': FieldValue.serverTimestamp(),
+        'metodo_registro': 'google',
+      }, SetOptions(merge: true));
+
+      // 3. Foto de perfil
+      if (fotoUrl.isNotEmpty) {
+        final docFoto = _db.collection('fotos_perfil').doc(uid);
+        lote.set(docFoto, {
+          'usuarioId': uid,
+          'fotoUrl': fotoUrl,
+          'rol': 'administrador',
+          'actualizadoEn': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
     }
 
     await lote.commit();

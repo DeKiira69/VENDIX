@@ -14,9 +14,14 @@ import 'clothing_prices_screen.dart';
 import 'jornadas_screen.dart';
 import 'payments_screen.dart';
 
-class MoreScreen extends StatelessWidget {
+class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
 
+  @override
+  State<MoreScreen> createState() => _MoreScreenState();
+}
+
+class _MoreScreenState extends State<MoreScreen> {
   static String _generarCodigoLive() {
     const letras = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
     const numeros = '23456789';
@@ -64,17 +69,33 @@ class MoreScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final usuario = FirebaseAuth.instance.currentUser;
     final usuarioId = usuario?.uid ?? '';
-    final nombreMostrar = usuario?.displayName ?? 'Daniela León';
-    final iniciales = nombreMostrar
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((p) => p.isNotEmpty)
-        .take(2)
-        .map((p) => p[0])
-        .join()
-        .toUpperCase();
 
-    return SafeArea(
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(usuarioId)
+          .snapshots(),
+      builder: (context, snap) {
+        final datos = snap.data?.data() as Map<String, dynamic>?;
+        final nombre = datos?['nombre']?.toString() ?? '';
+        final apellido = datos?['apellido']?.toString() ?? '';
+        final nombreMostrar = [nombre, apellido]
+            .where((s) => s.isNotEmpty)
+            .join(' ')
+            .trim();
+        final nombreFinal = nombreMostrar.isNotEmpty
+            ? nombreMostrar
+            : (usuario?.displayName ?? usuario?.email ?? 'Secretario');
+        final iniciales = nombreFinal
+            .trim()
+            .split(RegExp(r'\s+'))
+            .where((p) => p.isNotEmpty)
+            .take(2)
+            .map((p) => p[0])
+            .join()
+            .toUpperCase();
+
+        return SafeArea(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(18, 15, 18, 24),
         children: [
@@ -110,7 +131,7 @@ class MoreScreen extends StatelessWidget {
                   builder: (context, snapshot) {
                     return PerfilFotoService.avatarConInsignia(
                       fotoData: snapshot.data,
-                      iniciales: iniciales.isEmpty ? 'DL' : iniciales,
+                      iniciales: iniciales.isEmpty ? '?' : iniciales,
                       radio: 26,
                       onTap: () {
                         if (usuarioId.isEmpty) return;
@@ -130,7 +151,7 @@ class MoreScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        nombreMostrar,
+                        nombreFinal,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 15,
@@ -482,7 +503,9 @@ class MoreScreen extends StatelessWidget {
         ],
       ),
     );
-  }
+      }, // cierre builder StreamBuilder datos
+    ); // cierre StreamBuilder datos
+  } // cierre build
 
   static Widget _icon(IconData icon) {
     return Container(

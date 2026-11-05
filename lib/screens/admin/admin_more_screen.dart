@@ -8,6 +8,7 @@ import '../../services/client_service.dart';
 import '../secretary/clothing_prices_screen.dart';
 import '../secretary/payments_screen.dart';
 import '../auth/login_screen.dart';
+import '../../services/perfil_foto_service.dart';
 
 /// Pantalla "Más opciones" del admin – Figma fiel.
 ///
@@ -99,16 +100,29 @@ class AdminMoreScreen extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: const Color(0x55FFFFFF),
-                    child: Text(
-                      admin.iniciales,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                  StreamBuilder<String?>(
+                    stream: PerfilFotoService.fotoStream(admin.id),
+                    builder: (context, fotoSnap) {
+                      final foto = fotoSnap.data;
+                      if (foto != null && foto.isNotEmpty) {
+                        return CircleAvatar(
+                          radius: 24,
+                          backgroundColor: const Color(0x55FFFFFF),
+                          backgroundImage: NetworkImage(foto),
+                        );
+                      }
+                      return CircleAvatar(
+                        radius: 24,
+                        backgroundColor: const Color(0x55FFFFFF),
+                        child: Text(
+                          admin.iniciales,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(width: 12),
                   Expanded(

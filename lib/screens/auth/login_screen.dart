@@ -9,8 +9,10 @@ import '../admin/admin_home_screen.dart';
 import '../../models/administrador_model.dart';
 import '../../services/client_service.dart';
 import '../../services/google_auth_service.dart';
+import '../client/enter_code_screen.dart';
 import 'register_client_screen.dart';
 import 'register_entrepreneur_screen.dart';
+import 'register_admin_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -80,6 +82,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final aprobado = datos['aprobado'] == true;
 
     if (rol == 'cliente') {
+      final codigo = datos['codigoLive']?.toString().trim() ?? '';
+      if (codigo.isEmpty) {
+        return const EnterCodeScreen();
+      }
       return const ClientShell();
     } else if (rol == 'secretaria' || rol == 'secretario' || rol == 'operador') {
       if (estado == 'pendiente' || !aprobado) {
@@ -168,6 +174,13 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       if (clienteDocDirecto.exists || clienteQuery.docs.isNotEmpty) {
+        final data = clienteDocDirecto.exists
+            ? clienteDocDirecto.data()
+            : clienteQuery.docs.first.data();
+        final cod = data?['codigoLive']?.toString().trim() ?? '';
+        if (cod.isEmpty) {
+          return const EnterCodeScreen();
+        }
         return const ClientShell();
       }
 
@@ -354,6 +367,29 @@ class _LoginScreenState extends State<LoginScreen> {
                 await _mostrarModalDatosGoogle(usuario: usuario, rol: 'secretario');
               },
             ),
+            const SizedBox(height: 12),
+            ListTile(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: const BorderSide(color: Color(0xFFECE6F2)),
+              ),
+              leading: const CircleAvatar(
+                backgroundColor: Color(0xFFE8F5E9),
+                child: Icon(Icons.storefront, color: Color(0xFF2E7D32)),
+              ),
+              title: const Text(
+                'Soy Emprendedor (Administrador)',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              subtitle: const Text(
+                'Gestionar tienda, inventario y secretarios',
+                style: TextStyle(fontSize: 11),
+              ),
+              onTap: () async {
+                Navigator.pop(dialogCtx);
+                await _mostrarModalDatosGoogle(usuario: usuario, rol: 'administrador');
+              },
+            ),
           ],
         ),
       ),
@@ -412,7 +448,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   Text(
                     rol == 'cliente'
                         ? 'Completa tus datos de Cliente'
-                        : 'Completa tus datos de Secretario',
+                        : (rol == 'administrador'
+                            ? 'Completa tus datos de Emprendedor'
+                            : 'Completa tus datos de Secretario'),
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 18,
@@ -527,7 +565,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             telefono: telefonoCtrl.text.trim(),
                           );
 
-                          if (rol == 'cliente') {
+                          if (rol == 'cliente' || rol == 'administrador') {
                             await _abrirInterfazPorRol(usuario);
                           } else {
                             await FirebaseAuth.instance.signOut();
@@ -681,6 +719,12 @@ class _LoginScreenState extends State<LoginScreen> {
   void _irARegistroSecretario() {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const RegisterEntrepreneurScreen()),
+    );
+  }
+
+  void _irARegistroEmprendedor() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const RegisterAdminScreen()),
     );
   }
 
@@ -999,10 +1043,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 18),
 
-                    // Selector interactivo de registro (Secretario / Cliente)
+                    // Selector interactivo de registro (Secretario / Cliente / Emprendedor)
                     _SelectorRegistroAnimado(
                       onSecretario: _irARegistroSecretario,
                       onCliente: _irARegistroCliente,
+                      onEmprendedor: _irARegistroEmprendedor,
                     ),
                     const SizedBox(height: 16),
                   ],
@@ -1020,10 +1065,12 @@ class _LoginScreenState extends State<LoginScreen> {
 class _SelectorRegistroAnimado extends StatefulWidget {
   final VoidCallback onSecretario;
   final VoidCallback onCliente;
+  final VoidCallback onEmprendedor;
 
   const _SelectorRegistroAnimado({
     required this.onSecretario,
     required this.onCliente,
+    required this.onEmprendedor,
   });
 
   @override
@@ -1032,9 +1079,68 @@ class _SelectorRegistroAnimado extends StatefulWidget {
 }
 
 class _SelectorRegistroAnimadoState extends State<_SelectorRegistroAnimado> {
-  int _indiceSeleccionado = 0; // 0 = Secretario, 1 = Cliente
+  int _indiceSeleccionado = 0; // 0 = Secretario, 1 = Cliente, 2 = Emprendedor
 
   static const Color violeta = Color(0xFF6C4AB6);
+
+  Widget _buildOpcion({
+    required int indice,
+    required String texto,
+    required IconData icono,
+    required VoidCallback onTap,
+  }) {
+    final seleccionado = _indiceSeleccionado == indice;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _indiceSeleccionado = indice);
+          onTap();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 2),
+          decoration: BoxDecoration(
+            color: seleccionado ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: seleccionado
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icono,
+                size: 16,
+                color: seleccionado ? violeta : const Color(0xFF81798D),
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  texto,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: seleccionado ? violeta : const Color(0xFF81798D),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1046,95 +1152,23 @@ class _SelectorRegistroAnimadoState extends State<_SelectorRegistroAnimado> {
       ),
       child: Row(
         children: [
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                setState(() => _indiceSeleccionado = 0);
-                widget.onSecretario();
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeInOut,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: _indiceSeleccionado == 0 ? Colors.white : Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: _indiceSeleccionado == 0
-                      ? [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.06),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.badge_outlined,
-                      size: 18,
-                      color: _indiceSeleccionado == 0 ? violeta : const Color(0xFF81798D),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Secretario',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: _indiceSeleccionado == 0 ? violeta : const Color(0xFF81798D),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          _buildOpcion(
+            indice: 0,
+            texto: 'Secretario',
+            icono: Icons.badge_outlined,
+            onTap: widget.onSecretario,
           ),
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                setState(() => _indiceSeleccionado = 1);
-                widget.onCliente();
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeInOut,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: _indiceSeleccionado == 1 ? Colors.white : Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: _indiceSeleccionado == 1
-                      ? [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.06),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.person_outline,
-                      size: 18,
-                      color: _indiceSeleccionado == 1 ? violeta : const Color(0xFF81798D),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Cliente',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: _indiceSeleccionado == 1 ? violeta : const Color(0xFF81798D),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          _buildOpcion(
+            indice: 1,
+            texto: 'Cliente',
+            icono: Icons.person_outline,
+            onTap: widget.onCliente,
+          ),
+          _buildOpcion(
+            indice: 2,
+            texto: 'Emprendedor',
+            icono: Icons.storefront_outlined,
+            onTap: widget.onEmprendedor,
           ),
         ],
       ),
