@@ -527,7 +527,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'REGISTRO RÃPIDO',
+              'REGISTRO RÁPIDO',
               style: TextStyle(
                 fontSize: 10,
                 letterSpacing: 1.5,
@@ -599,7 +599,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
                 builder: (context, snapCompras) {
                   final docsCompras = snapCompras.data?.docs ?? [];
 
-                  // Total de prendas y compras histÃ³ricas por cliente
+                  // Total de prendas y compras históricas por cliente
                   final prendasHistoricas = <String, int>{};
                   final totalHistorico = <String, double>{};
                   for (final doc in docsCompras) {
@@ -640,7 +640,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
                         child: TextField(
                           controller: _buscadorController,
                           decoration: InputDecoration(
-                            hintText: 'Buscar clienta por nombre o telÃ©fono',
+                            hintText: 'Buscar clienta por nombre o teléfono',
                             prefixIcon: const Icon(Icons.search),
                             suffixIcon: _busqueda.isNotEmpty
                                 ? IconButton(
@@ -690,7 +690,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
                             ),
                             const SizedBox(height: 10),
                             if (prendasActivas.isEmpty)
-                              const Text('No hay prendas activas en el catÃ¡logo.')
+                              const Text('No hay prendas activas en el catálogo.')
                             else
                               SizedBox(
                                 height: 58,

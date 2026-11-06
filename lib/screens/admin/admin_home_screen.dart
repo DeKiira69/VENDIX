@@ -39,21 +39,21 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
 
-        // 1. Si el usuario est· en otra pestaÒa (Ventas Live, Secretarios, M·s),
-        // regresar suavemente a la pestaÒa 'Inicio'
+        // 1. Si el usuario est√° en otra pesta√±a (Ventas Live, Secretarios, M√°s),
+        // regresar suavemente a la pesta√±a 'Inicio'
         if (_footerIndex != 0) {
           setState(() => _footerIndex = 0);
           return;
         }
 
-        // 2. Si ya est· en 'Inicio', solicitar doble pulsaciÛn para salir limpiamente
+        // 2. Si ya est√° en 'Inicio', solicitar doble pulsaci√≥n para salir limpiamente
         final ahora = DateTime.now();
         if (_ultimoToqueAtras == null ||
             ahora.difference(_ultimoToqueAtras!) > const Duration(seconds: 2)) {
           _ultimoToqueAtras = ahora;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Presiona atr·s de nuevo para salir de la aplicaciÛn'),
+              content: Text('Presiona atr√°s de nuevo para salir de la aplicaci√≥n'),
               duration: Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
             ),
@@ -112,7 +112,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               NavigationDestination(
                 icon: Icon(Icons.person_outline),
                 selectedIcon: Icon(Icons.person, color: AppTheme.violet),
-                label: 'Perfil / M·s',
+                label: 'Perfil / M√°s',
               ),
             ],
           ),
