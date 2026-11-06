@@ -163,7 +163,7 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error con Google: $e')),
+          SnackBar(content: Text(GoogleAuthService.formatearErrorGoogle(e))),
         );
         setState(() => _cargando = false);
       }

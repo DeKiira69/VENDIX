@@ -291,7 +291,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al acceder con Google: $e'),
+            content: Text(GoogleAuthService.formatearErrorGoogle(e)),
             behavior: SnackBarBehavior.floating,
           ),
         );

@@ -175,7 +175,7 @@ class _RegisterClientScreenState extends State<RegisterClientScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al registrar con Google: $e'),
+            content: Text(GoogleAuthService.formatearErrorGoogle(e)),
             behavior: SnackBarBehavior.floating,
           ),
         );

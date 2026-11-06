@@ -10,6 +10,29 @@ class GoogleAuthService {
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
   static bool _initialized = false;
 
+  /// Traduce y formatea los errores habituales de autenticación con Google a mensajes comprensibles para el usuario
+  static String formatearErrorGoogle(dynamic e) {
+    if (e is FirebaseAuthException) {
+      switch (e.code) {
+        case 'popup-blocked':
+          return 'El navegador bloqueó la ventana emergente de Google. Si usas Brave o un bloqueador de ventanas, desactiva el escudo (Brave Shields) o permite las ventanas emergentes en localhost.';
+        case 'popup-closed-by-user':
+          return 'Se cerró la ventana de Google antes de completar el inicio de sesión.';
+        case 'cancelled-popup-request':
+          return 'Se canceló la solicitud previa de autenticación con Google.';
+        case 'network-request-failed':
+          return 'Error de conexión. Verifica tu acceso a internet.';
+        default:
+          return 'Error de autenticación con Google: ${e.message ?? e.code}';
+      }
+    }
+    final str = e.toString();
+    if (str.contains('popup-blocked') || str.contains('blocked by the browser')) {
+      return 'El navegador bloqueó la ventana emergente de Google. Si usas Brave o un bloqueador, desactiva el escudo (Brave Shields) o permite las ventanas emergentes en localhost.';
+    }
+    return 'Error al acceder con Google: $e';
+  }
+
   /// ID de cliente web configurado en Firebase Console (OAuth 2.0 Web Client)
   static const String _webClientId =
       '1072094421175-b9pe80lgr9r5g33oao2jb697po91plbq.apps.googleusercontent.com';
