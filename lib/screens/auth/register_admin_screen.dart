@@ -56,6 +56,22 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
     _confirmacion.dispose();
     super.dispose();
   }
+  String? _validarContrasena(String? v) {
+    if (v == null || v.trim().isEmpty) {
+      return 'Ingresa una contraseña.';
+    }
+    if (v.length < 6) {
+      return 'Usa al menos 6 caracteres.';
+    }
+    if (!RegExp(r'[a-zA-Z0-9]').hasMatch(v)) {
+      return 'Debe incluir caracteres alfanuméricos (letras o números).';
+    }
+    if (!RegExp(r'[^a-zA-Z0-9]').hasMatch(v)) {
+      return 'Debe incluir al menos un carácter especial (ej. @, #, \$, *, !).';
+    }
+    return null;
+  }
+
 
   /// Registra el emprendedor con correo y contraseña.
   Future<void> _registrar() async {
@@ -554,7 +570,7 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
                       TextFormField(
                         controller: _contrasena,
                         obscureText: _ocultar,
-                        decoration: _decoracion('Mínimo 6 caracteres', Icons.lock_outline)
+                        decoration: _decoracion('Mínimo 6 caracteres y 1 símbolo (@, #, \$...)', Icons.lock_outline)
                             .copyWith(
                           suffixIcon: IconButton(
                             onPressed: () => setState(() => _ocultar = !_ocultar),
@@ -565,12 +581,12 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
                             ),
                           ),
                         ),
-                        validator: (v) {
-                          if (v == null || v.length < 6) {
-                            return 'Usa al menos 6 caracteres.';
-                          }
-                          return null;
-                        },
+                        validator: _validarContrasena,
+                      ),
+                      const SizedBox(height: 5),
+                      const Text(
+                        'Debe contener mínimo 6 caracteres, letras/números y al menos un carácter especial (@, #, \$, *, !).',
+                        style: TextStyle(fontSize: 11, color: Colors.black54),
                       ),
                       const SizedBox(height: 16),
 
