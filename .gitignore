@@ -51,3 +51,6 @@ app.*.map.json
 backups/
 *.rar
 *.zip
+
+# Claves secretas del proyecto (NO subir a GitHub)
+lib/secrets.dart

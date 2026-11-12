@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import '../secrets.dart';
 
 /// Modelo de datos que encapsula el contexto real del cliente obtenido de Firebase
 class ContextoClienteChatbot {
@@ -51,16 +52,17 @@ class ContextoClienteChatbot {
 class GeminiService {
   GeminiService._();
 
-  /// Clave de API de Google Gemini (generada gratis en https://aistudio.google.com/)
-  /// Puedes definirla aquí o pasarla en tiempo de compilación con:
-  /// flutter run --dart-define=GEMINI_API_KEY=tu_api_key
+  /// Clave de API de Google Gemini — se lee desde lib/secrets.dart (excluido de Git)
+  /// Si se pasa con --dart-define=GEMINI_API_KEY=xxx, esa tiene prioridad.
   static String apiKey = const String.fromEnvironment(
     'GEMINI_API_KEY',
-    defaultValue: 'TU_GEMINI_API_KEY_AQUI',
-  );
+    defaultValue: '',
+  ).isNotEmpty
+      ? const String.fromEnvironment('GEMINI_API_KEY')
+      : AppSecrets.geminiApiKey;
 
-  /// Modelo de Gemini a utilizar (1.5 Flash es rápido, moderno y cuenta con cuota gratuita)
-  static const String modeloGemini = 'gemini-1.5-flash';
+  /// Modelo de Gemini a utilizar (Gemini 3.5 Flash Lite es ultra rápido, moderno y estable)
+  static const String modeloGemini = 'gemini-3.5-flash-lite';
 
   static GenerativeModel? _modelo;
   static ChatSession? _chatSession;
@@ -249,7 +251,7 @@ Tu misión es atender exclusivamente al cliente que ha iniciado sesión, respond
     if (mensajeLimpio.isEmpty) return '';
 
     // Si no se ha configurado la clave de Gemini, respondemos con los datos directos de Firebase
-    if (apiKey.isEmpty || apiKey == 'TU_GEMINI_API_KEY_AQUI') {
+    if (apiKey.isEmpty) {
       return _responderFallbackConFirebase(mensajeLimpio, contexto);
     }
 
@@ -276,7 +278,22 @@ Tu misión es atender exclusivamente al cliente que ha iniciado sesión, respond
 
       return _responderFallbackConFirebase(mensajeLimpio, contexto);
     } catch (e) {
-      // Si ocurre un error con la API (cuota, red, etc.), respondemos con la información de Firebase
+      // Si el modelo principal está ocupado, intentamos con el modelo alternativo
+      try {
+        final systemPrompt = _construirSystemPrompt(contexto);
+        final modeloRespaldo = GenerativeModel(
+          model: 'gemini-3.1-flash-lite',
+          apiKey: apiKey,
+          systemInstruction: Content.system(systemPrompt),
+        );
+        final respRespaldo = await modeloRespaldo.generateContent([Content.text(mensajeLimpio)]);
+        final textoRespaldo = respRespaldo.text;
+        if (textoRespaldo != null && textoRespaldo.trim().isNotEmpty) {
+          return textoRespaldo.trim();
+        }
+      } catch (_) {}
+
+      // Si ocurre un error de red o cuota, respondemos con los datos reales de Firebase
       return _responderFallbackConFirebase(mensajeLimpio, contexto);
     }
   }
