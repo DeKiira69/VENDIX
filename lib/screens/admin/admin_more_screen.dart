@@ -253,14 +253,6 @@ class AdminMoreScreen extends StatelessWidget {
                   ),
                   const Divider(height: 1, indent: 56, endIndent: 16),
                   ListTile(
-                    leading: const Icon(Icons.security_outlined, color: AppTheme.violet),
-                    title: const Text('Seguridad y accesos', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                    subtitle: const Text('Cambiar contraseña y permisos', style: TextStyle(fontSize: 11, color: AppTheme.muted)),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppTheme.muted),
-                    onTap: () {},
-                  ),
-                  const Divider(height: 1, indent: 56, endIndent: 16),
-                  ListTile(
                     leading: const Icon(Icons.logout, color: Colors.redAccent),
                     title: const Text('Cerrar sesión', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.redAccent)),
                     onTap: () {

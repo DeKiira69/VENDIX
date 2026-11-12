@@ -1079,7 +1079,7 @@ class _SelectorRegistroAnimado extends StatefulWidget {
 }
 
 class _SelectorRegistroAnimadoState extends State<_SelectorRegistroAnimado> {
-  int _indiceSeleccionado = 0; // 0 = Secretario, 1 = Cliente, 2 = Emprendedor
+  int _indiceSeleccionado = 0; // 0 = Cliente, 1 = Emprendedor
 
   static const Color violeta = Color(0xFF6C4AB6);
 
@@ -1154,19 +1154,13 @@ class _SelectorRegistroAnimadoState extends State<_SelectorRegistroAnimado> {
         children: [
           _buildOpcion(
             indice: 0,
-            texto: 'Secretario',
-            icono: Icons.badge_outlined,
-            onTap: widget.onSecretario,
-          ),
-          _buildOpcion(
-            indice: 1,
-            texto: 'Cliente',
+            texto: 'Soy Cliente',
             icono: Icons.person_outline,
             onTap: widget.onCliente,
           ),
           _buildOpcion(
-            indice: 2,
-            texto: 'Emprendedor',
+            indice: 1,
+            texto: 'Soy Emprendedor',
             icono: Icons.storefront_outlined,
             onTap: widget.onEmprendedor,
           ),

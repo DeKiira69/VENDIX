@@ -433,21 +433,21 @@ class _MoreScreenState extends State<MoreScreen> {
 
           const SizedBox(height: 15),
 
-          OutlinedButton.icon(
+          // Botón para alternar a modo Cliente
+          FilledButton.icon(
             onPressed: () {
-              Navigator.push(
-                context,
+              Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const ClientShell()),
+                (route) => false,
               );
             },
-            style: OutlinedButton.styleFrom(
+            style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 15),
-              side: const BorderSide(color: Color(0xFFD6C4F4)),
-              foregroundColor: AppTheme.violet,
-              backgroundColor: const Color(0xFFF0E9FC),
+              backgroundColor: const Color(0xFF6C4AB6),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
-            icon: const Icon(Icons.person_outline),
-            label: const Text('Ver experiencia de cliente'),
+            icon: const Icon(Icons.person_outline, color: Colors.white),
+            label: const Text('Cambiar a modo Cliente', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
           ),
 
           const SizedBox(height: 12),

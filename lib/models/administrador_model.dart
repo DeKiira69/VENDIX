@@ -2,6 +2,7 @@ class AdministradorModel {
   final String id;
   final String nombre;
   final String apellido;
+  final String nombreEmprendimiento;
   final String correo;
   final String telefono;
   final bool estado;
@@ -10,6 +11,7 @@ class AdministradorModel {
     required this.id,
     required this.nombre,
     required this.apellido,
+    this.nombreEmprendimiento = '',
     required this.correo,
     required this.telefono,
     this.estado = true,
@@ -28,6 +30,7 @@ class AdministradorModel {
       id: id,
       nombre: data['nombre'] ?? '',
       apellido: data['apellido'] ?? '',
+      nombreEmprendimiento: data['nombreEmprendimiento'] ?? data['emprendimiento'] ?? '',
       correo: data['correo'] ?? '',
       telefono: data['telefono'] ?? '',
       estado: data['estado'] ?? true,
@@ -38,6 +41,7 @@ class AdministradorModel {
     return {
       'nombre': nombre,
       'apellido': apellido,
+      'nombreEmprendimiento': nombreEmprendimiento,
       'correo': correo,
       'telefono': telefono,
       'estado': estado,

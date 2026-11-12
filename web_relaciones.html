@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VENDIX - Visor de Relaciones y Base de Datos (Dev Tool)</title>
+  <!-- Tailwind CSS & Fonts -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Firebase App & Firestore SDKs v10 -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { 
+      getFirestore, 
+      collection, 
+      onSnapshot,
+      query,
+      orderBy 
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // Configuración oficial de VENDIX
+    const firebaseConfig = {
+      apiKey: "AIzaSyAeZuUr8aBl3f4YtJDhF42b5qQOzhQB4_k",
+      authDomain: "vendix-53bd7.firebaseapp.com",
+      projectId: "vendix-53bd7",
+      storageBucket: "vendix-53bd7.firebasestorage.app",
+      messagingSenderId: "1072094421175",
+      appId: "1:1072094421175:web:d97fe51930b8c85f89ad32"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    window.db = db;
+    window.coleccion = collection;
+    window.onSnapshot = onSnapshot;
+    window.query = query;
+    window.orderBy = orderBy;
+  </script>
+
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background: #0B0F19; color: #F3F4F6; }
+    .glass { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+    .glass-hover:hover { background: rgba(31, 41, 55, 0.8); border-color: rgba(108, 74, 182, 0.4); }
+    .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #374151; borderRadius: 4px; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="glass sticky top-0 z-50 px-6 py-4 border-b border-gray-800 flex justify-between items-center shadow-lg">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center shadow-indigo-500/30 shadow-lg">
+        <i class="fa-solid fa-layer-group text-white text-lg"></i>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-400 to-indigo-300">
+          VENDIX Explorer <span class="text-xs px-2 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-800 ml-2">Dev Relational Live</span>
+        </h1>
+        <p class="text-xs text-gray-400">Mapa dinámico de Emprendedores, Secretarios, Clientes y Ventas</p>
+      </div>
+    </div>
+    
+    <!-- Filtros de vista rápida -->
+    <div class="flex items-center gap-2">
+      <span id="liveBadge" class="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Firestore Conectado
+      </span>
+      <button onclick="location.reload()" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs text-gray-300 font-medium transition flex items-center gap-1.5 border border-gray-700">
+        <i class="fa-solid fa-rotate text-xs"></i> Refrescar
+      </button>
+    </div>
+  </header>
+
+  <!-- Métricas Rápidas -->
+  <main class="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div class="glass p-4 rounded-2xl flex flex-col justify-between">
+        <div class="flex items-center justify-between text-gray-400 mb-2">
+          <span class="text-xs font-semibold">Emprendedores</span>
+          <i class="fa-solid fa-store text-purple-400"></i>
+        </div>
+        <span id="countAdmins" class="text-2xl font-extrabold text-white">0</span>
+      </div>
+
+      <div class="glass p-4 rounded-2xl flex flex-col justify-between">
+        <div class="flex items-center justify-between text-gray-400 mb-2">
+          <span class="text-xs font-semibold">Secretarios</span>
+          <i class="fa-solid fa-id-badge text-blue-400"></i>
+        </div>
+        <span id="countSecretarios" class="text-2xl font-extrabold text-white">0</span>
+      </div>
+
+      <div class="glass p-4 rounded-2xl flex flex-col justify-between">
+        <div class="flex items-center justify-between text-gray-400 mb-2">
+          <span class="text-xs font-semibold">En Pendiente</span>
+          <i class="fa-solid fa-clock-rotate-left text-amber-400"></i>
+        </div>
+        <span id="countPendientes" class="text-2xl font-extrabold text-amber-400">0</span>
+      </div>
+
+      <div class="glass p-4 rounded-2xl flex flex-col justify-between">
+        <div class="flex items-center justify-between text-gray-400 mb-2">
+          <span class="text-xs font-semibold">Clientes Totales</span>
+          <i class="fa-solid fa-users text-pink-400"></i>
+        </div>
+        <span id="countClientes" class="text-2xl font-extrabold text-white">0</span>
+      </div>
+
+      <div class="glass p-4 rounded-2xl flex flex-col justify-between">
+        <div class="flex items-center justify-between text-gray-400 mb-2">
+          <span class="text-xs font-semibold">Ventas Totales</span>
+          <i class="fa-solid fa-bag-shopping text-emerald-400"></i>
+        </div>
+        <span id="countCompras" class="text-2xl font-extrabold text-white">0</span>
+      </div>
+
+      <div class="glass p-4 rounded-2xl flex flex-col justify-between">
+        <div class="flex items-center justify-between text-gray-400 mb-2">
+          <span class="text-xs font-semibold">Monto Vendido</span>
+          <i class="fa-solid fa-dollar-sign text-emerald-400"></i>
+        </div>
+        <span id="totalVentasDinero" class="text-2xl font-extrabold text-emerald-400">$0.00</span>
+      </div>
+    </div>
+
+    <!-- Pestañas de Vista -->
+    <div class="flex border-b border-gray-800 gap-6 text-sm font-semibold">
+      <button onclick="cambiarTab('jerarquia')" id="tabBtnJerarquia" class="pb-3 border-b-2 border-purple-500 text-purple-400 flex items-center gap-2">
+        <i class="fa-solid fa-sitemap"></i> Jerarquía: Emprendedor ➔ Secretario ➔ Clientes
+      </button>
+      <button onclick="cambiarTab('solicitudes')" id="tabBtnSolicitudes" class="pb-3 border-b-2 border-transparent text-gray-400 hover:text-gray-200 flex items-center gap-2">
+        <i class="fa-solid fa-user-clock"></i> Solicitudes de Empleo <span id="badgeTabSol" class="px-1.5 py-0.5 text-xs rounded-full bg-amber-500/20 text-amber-400 hidden">0</span>
+      </button>
+      <button onclick="cambiarTab('compras')" id="tabBtnCompras" class="pb-3 border-b-2 border-transparent text-gray-400 hover:text-gray-200 flex items-center gap-2">
+        <i class="fa-solid fa-receipt"></i> Ventas & Compras en Vivo
+      </button>
+    </div>
+
+    <!-- CONTENEDOR 1: Vista Jerárquica -->
+    <section id="vistaJerarquia" class="space-y-6">
+      <div id="arbolContenedor" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="p-8 text-center text-gray-500 col-span-full">Cargando árbol de relaciones en tiempo real...</div>
+      </div>
+    </section>
+
+    <!-- CONTENEDOR 2: Solicitudes de Empleo -->
+    <section id="vistaSolicitudes" class="hidden space-y-4">
+      <div class="glass p-5 rounded-2xl">
+        <h2 class="text-base font-bold text-white mb-1 flex items-center gap-2">
+          <i class="fa-solid fa-user-clock text-amber-400"></i> Solicitudes de Clientes para trabajar como Secretarios
+        </h2>
+        <p class="text-xs text-gray-400 mb-4">Registro en tiempo real de clientes que postulan a emprendimientos.</p>
+        <div class="overflow-x-auto custom-scroll">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-gray-800/60 text-gray-400 uppercase font-bold text-[11px]">
+              <tr>
+                <th class="p-3 rounded-l-xl">Cliente / Postulante</th>
+                <th class="p-3">Correo</th>
+                <th class="p-3">Teléfono</th>
+                <th class="p-3">Emprendimiento Destino</th>
+                <th class="p-3">Estado</th>
+                <th class="p-3 rounded-r-xl">Código Live</th>
+              </tr>
+            </thead>
+            <tbody id="tablaSolicitudes" class="divide-y divide-gray-800 text-gray-300">
+              <tr><td colspan="6" class="p-4 text-center text-gray-500">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTENEDOR 3: Ventas & Compras -->
+    <section id="vistaCompras" class="hidden space-y-4">
+      <div class="glass p-5 rounded-2xl">
+        <h2 class="text-base font-bold text-white mb-1 flex items-center gap-2">
+          <i class="fa-solid fa-cart-shopping text-emerald-400"></i> Registro de Compras & Ventas en Vivo
+        </h2>
+        <p class="text-xs text-gray-400 mb-4">Listado de transacciones generadas en los Lives.</p>
+        <div class="overflow-x-auto custom-scroll">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-gray-800/60 text-gray-400 uppercase font-bold text-[11px]">
+              <tr>
+                <th class="p-3 rounded-l-xl">Fecha</th>
+                <th class="p-3">Cliente</th>
+                <th class="p-3">Prenda / Artículo</th>
+                <th class="p-3 text-center">Cantidad</th>
+                <th class="p-3 text-right">Precio Unitario</th>
+                <th class="p-3 text-right">Total</th>
+                <th class="p-3 rounded-r-xl">Secretario / Live</th>
+              </tr>
+            </thead>
+            <tbody id="tablaCompras" class="divide-y divide-gray-800 text-gray-300">
+              <tr><td colspan="7" class="p-4 text-center text-gray-500">Cargando compras...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="glass mt-auto p-4 text-center text-xs text-gray-500 border-t border-gray-800">
+    VENDIX Dev Platform • Firebase Live Firestore Explorer • Conectado a proyecto <span class="font-mono text-purple-400 font-semibold">vendix-53bd7</span>
+  </footer>
+
+  <!-- Lógica de Datos en Vivo -->
+  <script>
+    let adminsData = {};
+    let secretariosData = [];
+    let clientesData = [];
+    let comprasData = [];
+
+    function cambiarTab(tab) {
+      document.getElementById('vistaJerarquia').classList.add('hidden');
+      document.getElementById('vistaSolicitudes').classList.add('hidden');
+      document.getElementById('vistaCompras').classList.add('hidden');
+
+      ['tabBtnJerarquia', 'tabBtnSolicitudes', 'tabBtnCompras'].forEach(id => {
+        document.getElementById(id).classList.remove('border-purple-500', 'text-purple-400');
+        document.getElementById(id).classList.add('border-transparent', 'text-gray-400');
+      });
+
+      if (tab === 'jerarquia') {
+        document.getElementById('vistaJerarquia').classList.remove('hidden');
+        document.getElementById('tabBtnJerarquia').classList.add('border-purple-500', 'text-purple-400');
+      } else if (tab === 'solicitudes') {
+        document.getElementById('vistaSolicitudes').classList.remove('hidden');
+        document.getElementById('tabBtnSolicitudes').classList.add('border-purple-500', 'text-purple-400');
+      } else if (tab === 'compras') {
+        document.getElementById('vistaCompras').classList.remove('hidden');
+        document.getElementById('tabBtnCompras').classList.add('border-purple-500', 'text-purple-400');
+      }
+    }
+
+    // Inicializador Firestore una vez cargado el módulo
+    const esperarFirebase = setInterval(() => {
+      if (window.db) {
+        clearInterval(esperarFirebase);
+        iniciarObservadores();
+      }
+    }, 200);
+
+    function iniciarObservadores() {
+      const { db, coleccion, onSnapshot } = window;
+
+      // 1. Escuchar Administradores / Emprendedores
+      onSnapshot(coleccion(db, 'Administradores'), (snap) => {
+        adminsData = {};
+        snap.forEach(doc => {
+          adminsData[doc.id] = { id: doc.id, ...doc.data() };
+        });
+        document.getElementById('countAdmins').innerText = Object.keys(adminsData).length;
+        renderizarTodo();
+      });
+
+      // 2. Escuchar Secretarios
+      onSnapshot(coleccion(db, 'secretarios'), (snap) => {
+        secretariosData = [];
+        let pendientes = 0;
+        snap.forEach(doc => {
+          const d = { id: doc.id, ...doc.data() };
+          secretariosData.push(d);
+          const est = d.estado_solicitud || (d.aprobado === true ? 'aprobado' : 'pendiente');
+          if (est === 'pendiente' || d.aprobado === false) pendientes++;
+        });
+
+        document.getElementById('countSecretarios').innerText = secretariosData.length;
+        document.getElementById('countPendientes').innerText = pendientes;
+        
+        const badgeSol = document.getElementById('badgeTabSol');
+        if (pendientes > 0) {
+          badgeSol.innerText = pendientes;
+          badgeSol.classList.remove('hidden');
+        } else {
+          badgeSol.classList.add('hidden');
+        }
+
+        renderizarTodo();
+      });
+
+      // 3. Escuchar Clientes
+      onSnapshot(coleccion(db, 'clientes'), (snap) => {
+        clientesData = [];
+        snap.forEach(doc => {
+          clientesData.push({ id: doc.id, ...doc.data() });
+        });
+        document.getElementById('countClientes').innerText = clientesData.length;
+        renderizarTodo();
+      });
+
+      // 4. Escuchar Compras
+      onSnapshot(coleccion(db, 'compras'), (snap) => {
+        comprasData = [];
+        let dineroTotal = 0;
+        snap.forEach(doc => {
+          const d = { id: doc.id, ...doc.data() };
+          comprasData.push(d);
+          dineroTotal += Number(d.total || d.precio || 0);
+        });
+
+        document.getElementById('countCompras').innerText = comprasData.length;
+        document.getElementById('totalVentasDinero').innerText = `$${dineroTotal.toFixed(2)}`;
+        renderizarTodo();
+      });
+    }
+
+    function renderizarTodo() {
+      renderizarJerarquia();
+      renderizarSolicitudes();
+      renderizarCompras();
+    }
+
+    function renderizarJerarquia() {
+      const contenedor = document.getElementById('arbolContenedor');
+      if (Object.keys(adminsData).length === 0) {
+        contenedor.innerHTML = '<div class="p-8 text-center text-gray-500 col-span-full">No hay emprendedores registrados aún.</div>';
+        return;
+      }
+
+      let html = '';
+
+      for (const adminId in adminsData) {
+        const admin = adminsData[adminId];
+        const empNombre = admin.nombreEmprendimiento || `${admin.nombre || ''} ${admin.apellido || ''}`.trim() || 'Emprendimiento Sin Nombre';
+        const titular = `${admin.nombre || ''} ${admin.apellido || ''}`.trim();
+
+        // Secretarios vinculados a este admin
+        const secretariosDeAdmin = secretariosData.filter(s => s.adminId === adminId);
+
+        html += `
+          <div class="glass p-5 rounded-2xl flex flex-col justify-between border-t-4 border-purple-500 shadow-xl">
+            <div>
+              <!-- Cabecera Emprendedor -->
+              <div class="flex items-start justify-between mb-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-11 h-11 rounded-xl bg-purple-900/50 border border-purple-600/40 flex items-center justify-center text-purple-300 font-bold text-sm">
+                    <i class="fa-solid fa-store"></i>
+                  </div>
+                  <div>
+                    <h3 class="font-bold text-white text-base leading-tight">${empNombre}</h3>
+                    <p class="text-xs text-purple-300/80 font-medium">${titular ? 'Titular: ' + titular : ''}</p>
+                    <p class="text-[10px] text-gray-400 font-mono">${admin.correo || 'Sin correo'}</p>
+                  </div>
+                </div>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold uppercase">
+                  Emprendedor
+                </span>
+              </div>
+
+              <!-- Lista de Secretarios -->
+              <div class="mt-4 pt-3 border-t border-gray-800 space-y-3">
+                <div class="flex items-center justify-between text-xs text-gray-400 font-semibold mb-2">
+                  <span>Secretarios (${secretariosDeAdmin.length})</span>
+                  <span class="text-[10px] text-gray-500">Estado / Live</span>
+                </div>
+        `;
+
+        if (secretariosDeAdmin.length === 0) {
+          html += `
+            <div class="p-3 rounded-xl bg-gray-900/40 border border-gray-800/80 text-center text-xs text-gray-500">
+              Sin secretarios vinculados
+            </div>
+          `;
+        } else {
+          secretariosDeAdmin.forEach(sec => {
+            const esAprobado = sec.aprobado === true || sec.estado_solicitud === 'aprobado';
+            const estadoBadge = esAprobado
+              ? '<span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">Aprobado</span>'
+              : '<span class="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 text-[10px] font-bold border border-amber-500/20 animate-pulse">Pendiente</span>';
+
+            // Clientes atendidos por este secretario
+            const clientesDeSec = clientesData.filter(c => c.secretarioId === sec.uid || c.codigoLive === sec.codigoLive);
+
+            html += `
+              <div class="p-3 rounded-xl bg-gray-900/60 border border-gray-800 space-y-2">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-id-badge text-blue-400 text-xs"></i>
+                    <span class="text-xs font-bold text-gray-200">${sec.nombre || 'Secretario'}</span>
+                  </div>
+                  ${estadoBadge}
+                </div>
+                <div class="flex justify-between items-center text-[10px] text-gray-400">
+                  <span>Código: <strong class="text-purple-300 font-mono">${sec.codigoLive || 'Sin código'}</strong></span>
+                  <span class="text-pink-300 font-semibold">${clientesDeSec.length} clientas</span>
+                </div>
+
+                <!-- Desglose de Clientes vinculados a este live -->
+                ${clientesDeSec.length > 0 ? `
+                  <div class="mt-2 pl-3 border-l-2 border-pink-500/40 space-y-1">
+                    ${clientesDeSec.map(c => `
+                      <div class="text-[11px] text-gray-300 flex justify-between">
+                        <span>• ${c.nombre || 'Clienta'}</span>
+                        <span class="text-gray-500 text-[9px]">${c.telefono || ''}</span>
+                      </div>
+                    `).join('')}
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          });
+        }
+
+        html += `
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      contenedor.innerHTML = html;
+    }
+
+    function renderizarSolicitudes() {
+      const tabla = document.getElementById('tablaSolicitudes');
+      if (secretariosData.length === 0) {
+        tabla.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">No hay postulaciones registradas.</td></tr>';
+        return;
+      }
+
+      let html = '';
+      secretariosData.forEach(s => {
+        const esAprobado = s.aprobado === true || s.estado_solicitud === 'aprobado';
+        const emp = s.nombreEmprendimiento || adminsData[s.adminId]?.nombreEmprendimiento || s.adminNombre || 'Emprendedor';
+
+        html += `
+          <tr class="hover:bg-gray-800/40 transition">
+            <td class="p-3 font-semibold text-white flex items-center gap-2">
+              <i class="fa-solid fa-user text-purple-400 text-xs"></i> ${s.nombre || 'Postulante'}
+            </td>
+            <td class="p-3 text-gray-400 font-mono">${s.correo || '—'}</td>
+            <td class="p-3 text-gray-300">${s.telefono || '—'}</td>
+            <td class="p-3 font-semibold text-purple-300">${emp}</td>
+            <td class="p-3">
+              ${esAprobado
+                ? '<span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">Aprobado</span>'
+                : '<span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold">Pendiente</span>'
+              }
+            </td>
+            <td class="p-3 font-mono text-purple-400 font-bold">${s.codigoLive || 'Pendiente'}</td>
+          </tr>
+        `;
+      });
+
+      tabla.innerHTML = html;
+    }
+
+    function renderizarCompras() {
+      const tabla = document.getElementById('tablaCompras');
+      if (comprasData.length === 0) {
+        tabla.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">No hay ventas registradas aún.</td></tr>';
+        return;
+      }
+
+      let html = '';
+      // Ordenar por fecha reciente si está disponible
+      comprasData.slice(0, 50).forEach(c => {
+        const fecha = c.fecha?.toDate ? c.fecha.toDate().toLocaleString('es-EC') : 'Reciente';
+        const total = Number(c.total || (c.precio * (c.cantidad || 1)) || 0).toFixed(2);
+        const precioU = Number(c.precio || 0).toFixed(2);
+
+        html += `
+          <tr class="hover:bg-gray-800/40 transition">
+            <td class="p-3 text-gray-400 font-mono text-[11px]">${fecha}</td>
+            <td class="p-3 font-semibold text-white">${c.clienteNombre || 'Clienta'}</td>
+            <td class="p-3 text-purple-300 font-medium">${c.prenda || c.prendaNombre || 'Prenda'}</td>
+            <td class="p-3 text-center font-bold text-gray-200">${c.cantidad || 1}</td>
+            <td class="p-3 text-right text-gray-300 font-mono">$${precioU}</td>
+            <td class="p-3 text-right font-extrabold text-emerald-400 font-mono">$${total}</td>
+            <td class="p-3 text-gray-400 text-[11px] font-mono">${c.secretarioId ? c.secretarioId.substring(0, 8) + '...' : 'Live'}</td>
+          </tr>
+        `;
+      });
+
+      tabla.innerHTML = html;
+    }
+  </script>
+</body>
+</html>

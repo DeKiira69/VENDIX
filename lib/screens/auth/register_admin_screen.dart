@@ -24,6 +24,7 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nombre = TextEditingController();
   final _apellido = TextEditingController();
+  final _emprendimiento = TextEditingController();
   final _telefono = TextEditingController();
   final _correo = TextEditingController();
   final _contrasena = TextEditingController();
@@ -50,6 +51,7 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
   void dispose() {
     _nombre.dispose();
     _apellido.dispose();
+    _emprendimiento.dispose();
     _telefono.dispose();
     _correo.dispose();
     _contrasena.dispose();
@@ -96,6 +98,7 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
         uid: usuarioCreado.uid,
         nombre: _nombre.text.trim(),
         apellido: _apellido.text.trim(),
+        nombreEmprendimiento: _emprendimiento.text.trim(),
         correo: _correo.text.trim(),
         telefono: _telefono.text.trim(),
         fotoUrl: '',
@@ -108,6 +111,7 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
         id: usuarioCreado.uid,
         nombre: _nombre.text.trim(),
         apellido: _apellido.text.trim(),
+        nombreEmprendimiento: _emprendimiento.text.trim(),
         correo: _correo.text.trim(),
         telefono: _telefono.text.trim(),
         estado: true,
@@ -178,6 +182,7 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
     final apellidoCtrl = TextEditingController(
       text: partes.length > 1 ? partes.sublist(1).join(' ') : '',
     );
+    final emprendimientoCtrl = TextEditingController();
     final telefonoCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
@@ -261,6 +266,21 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
                   ),
                   const SizedBox(height: 14),
 
+                  // Nombre del Emprendimiento
+                  const Text(
+                    'Nombre del Emprendimiento / Tienda',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: emprendimientoCtrl,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: _decoracion('Ej. Boutique Vendix', Icons.storefront_outlined),
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Ingresa el nombre de tu emprendimiento' : null,
+                  ),
+                  const SizedBox(height: 14),
+
                   // Teléfono
                   const Text(
                     'Teléfono',
@@ -295,6 +315,7 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
                             uid: usuario.uid,
                             nombre: nombreCtrl.text.trim(),
                             apellido: apellidoCtrl.text.trim(),
+                            nombreEmprendimiento: emprendimientoCtrl.text.trim(),
                             correo: usuario.email ?? '',
                             telefono: telefonoCtrl.text.trim(),
                             fotoUrl: usuario.photoURL ?? '',
@@ -307,6 +328,7 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
                             id: usuario.uid,
                             nombre: nombreCtrl.text.trim(),
                             apellido: apellidoCtrl.text.trim(),
+                            nombreEmprendimiento: emprendimientoCtrl.text.trim(),
                             correo: usuario.email ?? '',
                             telefono: telefonoCtrl.text.trim(),
                             estado: true,
@@ -348,6 +370,7 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
     required String uid,
     required String nombre,
     required String apellido,
+    required String nombreEmprendimiento,
     required String correo,
     required String telefono,
     required String fotoUrl,
@@ -361,6 +384,7 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
       'uid': uid,
       'nombre': nombre,
       'apellido': apellido,
+      'nombreEmprendimiento': nombreEmprendimiento,
       'correo': correo,
       'telefono': telefono,
       'fotoUrl': fotoUrl,
@@ -374,6 +398,7 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
       'uid': uid,
       'nombre': nombre,
       'apellido': apellido,
+      'nombreEmprendimiento': nombreEmprendimiento,
       'correo': correo,
       'telefono': telefono,
       'fotoUrl': fotoUrl,
@@ -515,6 +540,25 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) {
                             return 'Ingresa tu apellido.';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Nombre del Emprendimiento
+                      const Text(
+                        'Nombre del Emprendimiento / Tienda',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 7),
+                      TextFormField(
+                        controller: _emprendimiento,
+                        textCapitalization: TextCapitalization.words,
+                        decoration: _decoracion('Ej. Boutique Vendix / Moda & Estilo', Icons.storefront_outlined),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return 'Ingresa el nombre de tu emprendimiento.';
                           }
                           return null;
                         },

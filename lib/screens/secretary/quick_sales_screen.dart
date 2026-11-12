@@ -1,4 +1,4 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/prenda_model.dart';
@@ -362,7 +362,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
                                   (e) =>
                                       '${e.key.nombre} x${e.value} (\$${(e.key.precio * e.value).toStringAsFixed(0)})',
                                 )
-                                .join(' Â· '),
+                                .join(' · '),
                             style: const TextStyle(
                               fontSize: 11,
                               color: AppTheme.muted,
@@ -397,7 +397,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
                             ),
                           ),
                           Text(
-                            '$totalPrendas prendas Â· $totalClientes clientas',
+                            '$totalPrendas prendas · $totalClientes clientas',
                             style: const TextStyle(
                               fontSize: 11,
                               color: AppTheme.muted,
@@ -481,7 +481,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
         _pedidosPendientes.clear();
       });
       _mostrarMensaje(
-        'âœ… Se registraron $totalPrendas prendas en $totalClientes clientas por \$${totalDinero.toStringAsFixed(2)}.',
+        '✅ Se registraron $totalPrendas prendas en $totalClientes clientas por \$${totalDinero.toStringAsFixed(2)}.',
       );
     }
   }
@@ -741,7 +741,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
                                               const SizedBox(height: 4),
                                               Text(
                                                 '+\$${prenda.precio.toStringAsFixed(0)}'
-                                                '${cantidad > 0 ? ' Â· $cantidad' : ''}',
+                                                '${cantidad > 0 ? ' · $cantidad' : ''}',
                                                 style: const TextStyle(
                                                   fontSize: 10,
                                                   color: AppTheme.violet,

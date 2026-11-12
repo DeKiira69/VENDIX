@@ -31,11 +31,13 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   void _mostrarModalEditarDatos({
     required String nombreActual,
     required String apellidoActual,
+    required String emprendimientoActual,
     required String telefonoActual,
   }) {
     final formKey = GlobalKey<FormState>();
     final nombreCtrl = TextEditingController(text: nombreActual);
     final apellidoCtrl = TextEditingController(text: apellidoActual);
+    final emprendimientoCtrl = TextEditingController(text: emprendimientoActual);
     final telefonoCtrl = TextEditingController(text: telefonoActual);
     bool guardando = false;
 
@@ -121,6 +123,20 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                             (v == null || v.trim().isEmpty) ? 'Ingresa tu apellido' : null,
                       ),
                       const SizedBox(height: 14),
+                      // Campo Nombre del Emprendimiento
+                      const Text(
+                        'Nombre del Emprendimiento / Tienda',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textoOscuro),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: emprendimientoCtrl,
+                        textCapitalization: TextCapitalization.words,
+                        decoration: _inputDecor('Ej. Boutique Vendix', Icons.storefront_outlined),
+                        validator: (v) =>
+                            (v == null || v.trim().isEmpty) ? 'Ingresa el nombre del emprendimiento' : null,
+                      ),
+                      const SizedBox(height: 14),
 
                       // Campo Teléfono
                       const Text(
@@ -156,6 +172,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                                   final uid = widget.admin.id;
                                   final nuevoNombre = nombreCtrl.text.trim();
                                   final nuevoApellido = apellidoCtrl.text.trim();
+                                  final nuevoEmprendimiento = emprendimientoCtrl.text.trim();
                                   final nuevoTelefono = telefonoCtrl.text.trim();
 
                                   try {
@@ -165,6 +182,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                                     final actualizacion = {
                                       'nombre': nuevoNombre,
                                       'apellido': nuevoApellido,
+                                      'nombreEmprendimiento': nuevoEmprendimiento,
                                       'telefono': nuevoTelefono,
                                       'actualizadoEn': FieldValue.serverTimestamp(),
                                     };
@@ -360,6 +378,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         final data = snapshot.data?.data() ?? {};
         final nombre = data['nombre']?.toString() ?? widget.admin.nombre;
         final apellido = data['apellido']?.toString() ?? widget.admin.apellido;
+        final emprendimiento = data['nombreEmprendimiento']?.toString() ?? widget.admin.nombreEmprendimiento;
         final nombreCompleto = '$nombre $apellido'.trim().isEmpty
             ? (widget.admin.nombreCompleto.isEmpty ? 'Emprendedor' : widget.admin.nombreCompleto)
             : '$nombre $apellido'.trim();
@@ -525,6 +544,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                         _mostrarModalEditarDatos(
                           nombreActual: nombre,
                           apellidoActual: apellido,
+                          emprendimientoActual: emprendimiento,
                           telefonoActual: telefono,
                         );
                       },

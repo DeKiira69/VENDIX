@@ -1,3 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../secretary/secretary_shell.dart';
+import 'solicitud_empleo_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -164,6 +167,123 @@ class ClientProfileScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 22),
+
+              // ── Gestión Laboral: Trabajar como Secretario ──
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('secretarios')
+                    .where('clienteId', isEqualTo: usuarioId)
+                    .where('aprobado', isEqualTo: true)
+                    .snapshots(),
+                builder: (context, snapEmpleos) {
+                  final empleos = snapEmpleos.data?.docs ?? [];
+
+                  if (empleos.isNotEmpty) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: violeta,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        icon: const Icon(Icons.badge_outlined, color: Colors.white),
+                        label: Text(
+                          empleos.length > 1
+                              ? 'Cambiar a modo Secretario ( empleos)'
+                              : 'Cambiar a modo Secretario',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        onPressed: () {
+                          if (empleos.length == 1) {
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(builder: (_) => const SecretaryShell()),
+                            );
+                          } else {
+                            showModalBottomSheet(
+                              context: context,
+                              shape: const RoundedRectangleBorder(
+                                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                              ),
+                              builder: (sheetCtx) => SafeArea(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(18),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Selecciona el Emprendimiento',
+                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      const Text(
+                                        '¿Para cuál de tus emprendedores trabajarás en esta sesión?',
+                                        style: TextStyle(fontSize: 12, color: Color(0xFF81798D)),
+                                      ),
+                                      const SizedBox(height: 14),
+                                      ...empleos.map((doc) {
+                                        final data = doc.data() as Map<String, dynamic>;
+                                        final emp = data['nombreEmprendimiento']?.toString() ??
+                                            data['adminNombre']?.toString() ??
+                                            'Emprendedor';
+                                        return ListTile(
+                                          leading: const CircleAvatar(
+                                            backgroundColor: Color(0xFFF0E8FC),
+                                            child: Icon(Icons.storefront_outlined, color: violeta),
+                                          ),
+                                          title: Text(emp, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                          subtitle: Text('Código: '),
+                                          trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                                          onTap: () {
+                                            Navigator.pop(sheetCtx);
+                                            Navigator.of(context).pushReplacement(
+                                              MaterialPageRoute(builder: (_) => const SecretaryShell()),
+                                            );
+                                          },
+                                        );
+                                      }),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+
+              // Botón para Solicitar Empleo / Postularse con Emprendedores
+              Container(
+                margin: const EdgeInsets.only(bottom: 14),
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SolicitudEmpleoScreen()),
+                    );
+                  },
+                  icon: const Icon(Icons.work_outline, color: violeta),
+                  label: const Text(
+                    'Trabajar como Secretario (Postularse)',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: violeta),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: const BorderSide(color: Color(0xFFD6C4F4)),
+                    backgroundColor: const Color(0xFFFAF7FD),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                ),
+              ),
 
               // Botón de Cerrar Sesión funcionando al 100%
               OutlinedButton.icon(
