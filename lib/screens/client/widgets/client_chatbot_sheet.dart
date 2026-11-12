@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../../services/gemini_service.dart';
 
-/// Modelo de datos simulados para los mensajes del chat
+/// Modelo de datos para los mensajes del chat
 class ChatMessageMock {
   final String text;
   final bool isUser;
@@ -97,11 +98,11 @@ class ClientChatbotFAB extends StatelessWidget {
   }
 }
 
-/// Bottom Sheet modal interactivo del Chatbot para Clientes
+/// Bottom Sheet modal interactivo del Chatbot conectado a Gemini y Firebase
 class ClientChatbotSheet extends StatefulWidget {
   const ClientChatbotSheet({super.key});
 
-  /// Método estático auxiliar para abrir el modal con las dimensiones y diseño solicitados
+  /// Abre el modal con las dimensiones y diseño solicitados
   static Future<void> show(BuildContext context) {
     return showModalBottomSheet(
       context: context,
@@ -127,37 +128,24 @@ class _ClientChatbotSheetState extends State<ClientChatbotSheet> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _puedeEnviar = false;
+  bool _escribiendoBot = false;
+  ContextoClienteChatbot _contexto = ContextoClienteChatbot.vacio();
 
-  /// Lista de mensajes simulados (Mockups) contextualizados en compras de Vendix
+  /// Historial de mensajes en memoria durante la sesión del chat
   final List<ChatMessageMock> _mensajes = [
     const ChatMessageMock(
-      text: '¡Hola! 👋 Soy tu Asistente de Compras en Vivo Vendix.',
+      text: '¡Hola! 👋 Soy tu Asistente de Compras en Vivo Vendix.\n\nEstoy conectando con tu cuenta de Firebase para poder responderte con información actualizada...',
       isUser: false,
       time: 'Ahora',
-    ),
-    const ChatMessageMock(
-      text: 'Puedo ayudarte a revisar tu saldo, entender cómo apartar prendas durante el live o resolver dudas sobre tus pedidos.',
-      isUser: false,
-      time: 'Ahora',
-    ),
-    const ChatMessageMock(
-      text: '¿Cómo sé si la secretaria ya anotó mi prenda apartada?',
-      isUser: true,
-      time: '10:42 AM',
-    ),
-    const ChatMessageMock(
-      text: '¡En tiempo real! En cuanto la secretaria confirme tu compra en la transmisión, se sumará automáticamente a tu pestaña "Saldo" y "Compras" de esta app ✨.',
-      isUser: false,
-      time: '10:43 AM',
     ),
   ];
 
-  /// Sugerencias rápidas (Chips) para preguntas frecuentes
+  /// Sugerencias rápidas (Chips) actualizadas: sin medios de pago, con ubicación
   final List<String> _sugerencias = [
     '💰 ¿Cuál es mi saldo?',
+    '📍 ¿Dónde se encuentran?',
     '🛍️ ¿Cómo apartar en Live?',
-    '💳 Medios de pago',
-    '📦 Estado de envío',
+    '📦 Mis prendas apartadas',
   ];
 
   @override
@@ -169,6 +157,30 @@ class _ClientChatbotSheetState extends State<ClientChatbotSheet> {
         setState(() => _puedeEnviar = tieneTexto);
       }
     });
+
+    _cargarContextoFirebase();
+  }
+
+  /// Carga en tiempo real los datos del cliente desde Firebase
+  Future<void> _cargarContextoFirebase() async {
+    final ctx = await GeminiService.obtenerContextoCliente();
+    if (!mounted) return;
+
+    setState(() {
+      _contexto = ctx;
+      _mensajes.clear();
+
+      final primerNombre = ctx.nombre.trim().split(RegExp(r'\s+')).first;
+      final saludo = primerNombre.isNotEmpty ? primerNombre : 'Cliente';
+
+      _mensajes.add(
+        ChatMessageMock(
+          text: '¡Hola, $saludo! 👋 Soy tu Asistente Vendix de compras en vivo.\n\nEstoy conectado a tu cuenta de Firebase. Puedes consultarme por tu saldo pendiente, tus prendas apartadas o dónde queda nuestra tienda física 🛍️✨.',
+          isUser: false,
+          time: 'Ahora',
+        ),
+      );
+    });
   }
 
   @override
@@ -178,9 +190,9 @@ class _ClientChatbotSheetState extends State<ClientChatbotSheet> {
     super.dispose();
   }
 
-  void _enviarMensaje([String? textoOpcional]) {
+  Future<void> _enviarMensaje([String? textoOpcional]) async {
     final texto = (textoOpcional ?? _textController.text).trim();
-    if (texto.isEmpty) return;
+    if (texto.isEmpty || _escribiendoBot) return;
 
     final ahora = DateTime.now();
     final hora = '${ahora.hour.toString().padLeft(2, '0')}:${ahora.minute.toString().padLeft(2, '0')}';
@@ -193,6 +205,7 @@ class _ClientChatbotSheetState extends State<ClientChatbotSheet> {
           time: hora,
         ),
       );
+      _escribiendoBot = true;
       if (textoOpcional == null) {
         _textController.clear();
         _puedeEnviar = false;
@@ -201,20 +214,42 @@ class _ClientChatbotSheetState extends State<ClientChatbotSheet> {
 
     _scrollAlFinal();
 
-    // Simulación de respuesta automática del bot (Mockup UI)
-    Future.delayed(const Duration(milliseconds: 700), () {
+    try {
+      // Consulta con Firebase + Gemini API
+      final respuesta = await GeminiService.enviarMensaje(
+        mensaje: texto,
+        contexto: _contexto,
+      );
+
       if (!mounted) return;
+      final ahoraResp = DateTime.now();
+      final horaResp = '${ahoraResp.hour.toString().padLeft(2, '0')}:${ahoraResp.minute.toString().padLeft(2, '0')}';
+
       setState(() {
+        _escribiendoBot = false;
         _mensajes.add(
           ChatMessageMock(
-            text: '¡Mensaje recibido! 🤖 Esta es una simulación visual de la interfaz. En la siguiente etapa me conectaré con la IA para responderte en tiempo real.',
+            text: respuesta,
             isUser: false,
-            time: hora,
+            time: horaResp,
           ),
         );
       });
-      _scrollAlFinal();
-    });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _escribiendoBot = false;
+        _mensajes.add(
+          const ChatMessageMock(
+            text: 'Ocurrió un inconveniente temporal al consultar. Por favor intenta de nuevo en unos instantes.',
+            isUser: false,
+            time: 'Ahora',
+          ),
+        );
+      });
+    }
+
+    _scrollAlFinal();
   }
 
   void _scrollAlFinal() {
@@ -232,7 +267,6 @@ class _ClientChatbotSheetState extends State<ClientChatbotSheet> {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    // El modal ocupa entre el 75% y el 80% de la altura total de la pantalla
     final alturaDeseada = mediaQuery.size.height * 0.78;
     final paddingTeclado = mediaQuery.viewInsets.bottom;
 
@@ -241,7 +275,7 @@ class _ClientChatbotSheetState extends State<ClientChatbotSheet> {
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(32), // Bordes redondeados pronunciados estilo premium
+          top: Radius.circular(32),
         ),
         boxShadow: [
           BoxShadow(
@@ -255,7 +289,7 @@ class _ClientChatbotSheetState extends State<ClientChatbotSheet> {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         child: Scaffold(
           backgroundColor: Colors.white,
-          resizeToAvoidBottomInset: false, // Control manual para suavidad perfecta
+          resizeToAvoidBottomInset: false,
           body: SafeArea(
             top: false,
             child: Padding(
@@ -277,8 +311,11 @@ class _ClientChatbotSheetState extends State<ClientChatbotSheet> {
                       child: ListView.builder(
                         controller: _scrollController,
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                        itemCount: _mensajes.length,
+                        itemCount: _mensajes.length + (_escribiendoBot ? 1 : 0),
                         itemBuilder: (context, index) {
+                          if (index == _mensajes.length && _escribiendoBot) {
+                            return _buildBurbujaPensando();
+                          }
                           final mensaje = _mensajes[index];
                           return _buildBurbuja(mensaje);
                         },
@@ -369,9 +406,9 @@ class _ClientChatbotSheetState extends State<ClientChatbotSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Asistente Vendix',
+                  'Asistente Vendix (Gemini AI)',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 15.5,
                     fontWeight: FontWeight.bold,
                     color: oscuro,
                     letterSpacing: -0.2,
@@ -379,7 +416,7 @@ class _ClientChatbotSheetState extends State<ClientChatbotSheet> {
                 ),
                 SizedBox(height: 2),
                 Text(
-                  'En línea • Soporte para tus compras',
+                  'En línea • Conectado a Firebase',
                   style: TextStyle(
                     fontSize: 11.5,
                     color: Color(0xFF15966B),
@@ -401,6 +438,61 @@ class _ClientChatbotSheetState extends State<ClientChatbotSheet> {
               padding: EdgeInsets.zero,
               onPressed: () => Navigator.pop(context),
               tooltip: 'Cerrar chat',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBurbujaPensando() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            margin: const EdgeInsets.only(right: 8, bottom: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFE8FB),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.smart_toy_outlined,
+              size: 16,
+              color: violeta,
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: bordeColor, width: 1),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: violeta,
+                  ),
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'Consultando información...',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: Color(0xFF81798D),
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -436,7 +528,7 @@ class _ClientChatbotSheetState extends State<ClientChatbotSheet> {
           Flexible(
             child: Container(
               constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.72,
+                maxWidth: MediaQuery.of(context).size.width * 0.74,
               ),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
@@ -553,17 +645,20 @@ class _ClientChatbotSheetState extends State<ClientChatbotSheet> {
               child: TextField(
                 controller: _textController,
                 textInputAction: TextInputAction.send,
+                enabled: !_escribiendoBot,
                 onSubmitted: (_) => _enviarMensaje(),
-                decoration: const InputDecoration(
-                  hintText: 'Escribe tu pregunta o duda...',
-                  hintStyle: TextStyle(
+                decoration: InputDecoration(
+                  hintText: _escribiendoBot
+                      ? 'Esperando respuesta...'
+                      : 'Escribe tu pregunta o duda...',
+                  hintStyle: const TextStyle(
                     color: Color(0xFFA197AF),
                     fontSize: 13.5,
                   ),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 12),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
                   isDense: true,
                 ),
               ),
@@ -573,7 +668,7 @@ class _ClientChatbotSheetState extends State<ClientChatbotSheet> {
           Container(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: _puedeEnviar
+              gradient: (_puedeEnviar && !_escribiendoBot)
                   ? const LinearGradient(
                       colors: [violeta, violetaGradiente],
                       begin: Alignment.topLeft,
@@ -582,7 +677,7 @@ class _ClientChatbotSheetState extends State<ClientChatbotSheet> {
                   : LinearGradient(
                       colors: [Colors.grey.shade300, Colors.grey.shade300],
                     ),
-              boxShadow: _puedeEnviar
+              boxShadow: (_puedeEnviar && !_escribiendoBot)
                   ? [
                       BoxShadow(
                         color: violeta.withValues(alpha: 0.35),
@@ -597,7 +692,9 @@ class _ClientChatbotSheetState extends State<ClientChatbotSheet> {
               child: IconButton(
                 icon: const Icon(Icons.send_rounded, size: 20),
                 color: Colors.white,
-                onPressed: _puedeEnviar ? () => _enviarMensaje() : null,
+                onPressed: (_puedeEnviar && !_escribiendoBot)
+                    ? () => _enviarMensaje()
+                    : null,
                 tooltip: 'Enviar mensaje',
               ),
             ),
