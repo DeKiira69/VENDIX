@@ -5,6 +5,7 @@ import 'client_home_screen.dart';
 import 'client_purchases_screen.dart';
 import 'client_balance_screen.dart';
 import 'client_profile_screen.dart';
+import 'widgets/client_chatbot_sheet.dart';
 
 class ClientShell extends StatefulWidget {
   const ClientShell({super.key});
@@ -58,6 +59,7 @@ class _ClientShellState extends State<ClientShell> {
       child: Scaffold(
         backgroundColor: const Color(0xFFF8F6FA),
         body: IndexedStack(index: _seleccion, children: _pantallas),
+        floatingActionButton: _seleccion == 0 ? const ClientChatbotFAB() : null,
         bottomNavigationBar: NavigationBar(
           backgroundColor: Colors.white,
           indicatorColor: const Color(0xFFF0E8FC),
