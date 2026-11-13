@@ -6,9 +6,23 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../services/client_service.dart';
 import '../../services/perfil_foto_service.dart';
+import 'client_profile_screen.dart';
 
 class ClientHomeScreen extends StatelessWidget {
-  const ClientHomeScreen({super.key});
+  final VoidCallback? onIrAPerfil;
+
+  const ClientHomeScreen({super.key, this.onIrAPerfil});
+
+  void _abrirPerfil(BuildContext context) {
+    if (onIrAPerfil != null) {
+      onIrAPerfil!();
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ClientProfileScreen()),
+      );
+    }
+  }
 
   static const Color violeta = Color(0xFF7950C2);
   static const Color oscuro = Color(0xFF241B35);
@@ -65,15 +79,19 @@ class ClientHomeScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    CircleAvatar(
-                      backgroundColor: rosa,
-                      child: Text(
-                        saludoAuth.isNotEmpty
-                            ? saludoAuth[0].toUpperCase()
-                            : 'C',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
+                    InkWell(
+                      onTap: () => _abrirPerfil(context),
+                      borderRadius: BorderRadius.circular(22),
+                      child: CircleAvatar(
+                        backgroundColor: rosa,
+                        child: Text(
+                          saludoAuth.isNotEmpty
+                              ? saludoAuth[0].toUpperCase()
+                              : 'C',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
@@ -231,40 +249,48 @@ class ClientHomeScreen extends StatelessWidget {
                                   }
                                 }
 
-                                return CircleAvatar(
-                                  radius: 22,
-                                  backgroundColor: rosa,
-                                  backgroundImage: imageProvider,
-                                  child: imageProvider == null
-                                      ? Text(
-                                          nombres
-                                              .map(
-                                                (n) => n.isNotEmpty ? n[0] : '',
-                                              )
-                                              .take(2)
-                                              .join()
-                                              .toUpperCase(),
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        )
-                                      : null,
+                                return InkWell(
+                                  onTap: () => _abrirPerfil(context),
+                                  borderRadius: BorderRadius.circular(24),
+                                  child: CircleAvatar(
+                                    radius: 22,
+                                    backgroundColor: rosa,
+                                    backgroundImage: imageProvider,
+                                    child: imageProvider == null
+                                        ? Text(
+                                            nombres
+                                                .map(
+                                                  (n) => n.isNotEmpty ? n[0] : '',
+                                                )
+                                                .take(2)
+                                                .join()
+                                                .toUpperCase(),
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          )
+                                        : null,
+                                  ),
                                 );
                               }
 
-                              return CircleAvatar(
-                                radius: 22,
-                                backgroundColor: rosa,
-                                child: Text(
-                                  nombres
-                                      .map((n) => n.isNotEmpty ? n[0] : '')
-                                      .take(2)
-                                      .join()
-                                      .toUpperCase(),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
+                              return InkWell(
+                                onTap: () => _abrirPerfil(context),
+                                borderRadius: BorderRadius.circular(24),
+                                child: CircleAvatar(
+                                  radius: 22,
+                                  backgroundColor: rosa,
+                                  child: Text(
+                                    nombres
+                                        .map((n) => n.isNotEmpty ? n[0] : '')
+                                        .take(2)
+                                        .join()
+                                        .toUpperCase(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                               );

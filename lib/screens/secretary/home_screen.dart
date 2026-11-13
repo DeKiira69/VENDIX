@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/perfil_foto_service.dart';
 import '../../theme/app_theme.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -56,10 +58,25 @@ class HomeScreen extends StatelessWidget {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              radius: 21,
-              backgroundColor: AppTheme.violet,
-              child: const Icon(Icons.person_outline, color: Colors.white),
+            child: InkWell(
+              onTap: alAbrirMas,
+              borderRadius: BorderRadius.circular(21),
+              child: StreamBuilder<String?>(
+                stream: PerfilFotoService.fotoStream(
+                  FirebaseAuth.instance.currentUser?.uid,
+                ),
+                builder: (context, snap) {
+                  return PerfilFotoService.avatarWidget(
+                    context: context,
+                    fotoData: snap.data,
+                    iniciales: 'S',
+                    nombre: 'Mi perfil',
+                    subtitulo: 'Secretario/a',
+                    radius: 21,
+                    onTap: alAbrirMas,
+                  );
+                },
+              ),
             ),
           ),
         ],

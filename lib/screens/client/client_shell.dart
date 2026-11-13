@@ -18,12 +18,18 @@ class _ClientShellState extends State<ClientShell> {
   int _seleccion = 0;
   DateTime? _ultimoToqueAtras;
 
-  final List<Widget> _pantallas = const [
-    ClientHomeScreen(),
-    ClientPurchasesScreen(),
-    ClientBalanceScreen(),
-    ClientProfileScreen(),
-  ];
+  late final List<Widget> _pantallas;
+
+  @override
+  void initState() {
+    super.initState();
+    _pantallas = [
+      ClientHomeScreen(onIrAPerfil: () => setState(() => _seleccion = 3)),
+      const ClientPurchasesScreen(),
+      const ClientBalanceScreen(),
+      const ClientProfileScreen(),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {

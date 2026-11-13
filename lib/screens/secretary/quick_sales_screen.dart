@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/prenda_model.dart';
@@ -6,8 +7,9 @@ import '../../theme/app_theme.dart';
 
 class QuickSalesScreen extends StatefulWidget {
   final VoidCallback? onVolver;
+  final String? adminId;
 
-  const QuickSalesScreen({super.key, this.onVolver});
+  const QuickSalesScreen({super.key, this.onVolver, this.adminId});
 
   @override
   State<QuickSalesScreen> createState() => _QuickSalesScreenState();
@@ -19,6 +21,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
 
   String? _clienteSeleccionadoId;
   String _clienteSeleccionadoNombre = '';
+  String? _adminId;
 
   // client doc ID -> { PrendaModel: cantidad }
   final Map<String, Map<PrendaModel, int>> _pedidosPendientes = {};
@@ -28,11 +31,40 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
   @override
   void initState() {
     super.initState();
+    _resolverAdminId();
     _buscadorController.addListener(() {
       setState(() {
         _busqueda = _buscadorController.text.trim().toLowerCase();
       });
     });
+  }
+
+  Future<void> _resolverAdminId() async {
+    if (widget.adminId != null && widget.adminId!.isNotEmpty) {
+      if (mounted) setState(() => _adminId = widget.adminId);
+      return;
+    }
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      final userDoc = await _db.collection('usuarios').doc(uid).get();
+      final data = userDoc.data();
+      final rol = data?['rol']?.toString().toLowerCase();
+
+      if (rol == 'administrador' || rol == 'admin') {
+        _adminId = uid;
+      } else {
+        _adminId = data?['adminId']?.toString();
+        if (_adminId == null || _adminId!.isEmpty) {
+          final secDoc = await _db.collection('secretarios').doc(uid).get();
+          _adminId = secDoc.data()?['adminId']?.toString();
+        }
+      }
+    } catch (_) {}
+
+    if (mounted) setState(() {});
   }
 
   @override
@@ -236,6 +268,8 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
         'cantidad': entrada.value,
         'total': subtotal,
         'subtotal': subtotal,
+        'adminId': _adminId ?? FirebaseAuth.instance.currentUser?.uid ?? '',
+        'creadoPor': FirebaseAuth.instance.currentUser?.uid ?? '',
         'fecha': FieldValue.serverTimestamp(),
       });
     }
@@ -477,6 +511,8 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
           'cantidad': entrada.value,
           'total': subtotal,
           'subtotal': subtotal,
+          'adminId': _adminId ?? FirebaseAuth.instance.currentUser?.uid ?? '',
+          'creadoPor': FirebaseAuth.instance.currentUser?.uid ?? '',
           'fecha': FieldValue.serverTimestamp(),
         });
       }
@@ -591,7 +627,14 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
       body: StreamBuilder<QuerySnapshot>(
         stream: _db.collection('clientes').snapshots(),
         builder: (context, snapClientes) {
-          final docsClientes = snapClientes.data?.docs ?? [];
+          final docsClientes = (snapClientes.data?.docs ?? []).where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final cAdminId = data['adminId']?.toString() ?? '';
+            return _adminId == null ||
+                _adminId!.isEmpty ||
+                cAdminId == _adminId ||
+                cAdminId.isEmpty;
+          }).toList();
           for (final doc in docsClientes) {
             final data = doc.data() as Map<String, dynamic>;
             _nombresClientesCache[doc.id] = data['nombre'] ?? 'Clienta';

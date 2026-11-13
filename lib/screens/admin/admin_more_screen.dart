@@ -6,7 +6,6 @@ import '../../theme/app_theme.dart';
 import '../../models/administrador_model.dart';
 import '../../services/client_service.dart';
 import '../secretary/clothing_prices_screen.dart';
-import '../secretary/payments_screen.dart';
 import '../auth/login_screen.dart';
 import '../../services/perfil_foto_service.dart';
 
@@ -202,19 +201,7 @@ class AdminMoreScreen extends StatelessWidget {
               subtitle: 'Editar catálogo, códigos y precios oficiales',
               destination: const ClothingPricesScreen(),
             ),
-            const SizedBox(height: 8),
-
-            _buildActionCard(
-              context,
-              icon: Icons.payments_outlined,
-              iconBg: const Color(0xFFE8F5E9),
-              iconColor: AppTheme.green,
-              title: 'Gestión de pagos',
-              subtitle: 'Revisar abonos, verificar transferencias y saldos',
-              destination: const PaymentsScreen(),
-            ),
-
-            const SizedBox(height: 26),
+            const SizedBox(height: 16),
 
             // ─── Ajustes de la cuenta ───
             const Text(

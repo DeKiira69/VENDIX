@@ -234,5 +234,32 @@ El proyecto cuenta con scripts por lotes en la raíz para facilitar el trabajo d
 ### C. Eliminación de Desbordamiento Visual en Historial de Clientas
 - **Causa raíz:** El diálogo de historial utilizaba un `Column(mainAxisSize: MainAxisSize.min)` dentro del bottom sheet; al acumular más de 4 o 5 compras o pagos registrados, el contenido excedía el alto de la ventana generando la barra rayada amarilla/negra `BOTTOM OVERFLOWED BY 203 PIXELS`.
 - **Solución implementada:**
-  - Se reestructuró `_verHistorial` utilizando `DraggableScrollableSheet` con `ListView`, drag handle central, tarjeta de cliente con avatar interactivo y secciones independientes para compras y abonos con contadores, fechas legibles y estado vacío estilizado. Cero desbordamientos para cualquier cantidad de transacciones.
+  - Se reestructuró `_verHistorial` utilizando `DraggableScrollableSheet` con `ListView`, drag handle central, tarjeta de cliente con avatar interactivo y secciones independientes para compras con contadores, fechas legibles y estado vacío estilizado. Cero desbordamientos para cualquier cantidad de transacciones.
+
+### D. Solución Definitiva a la Pantalla Roja al Agregar Clienta (`_dependents.isEmpty`)
+- **Causa raíz:** Al presionar "Guardar" en el diálogo de nueva clienta, se ejecutaba `Navigator.pop()` e inmediatamente se escribía en Firestore mientras los controladores se liberaban en `.then((_) { dispose(); })`. La escritura desencadenaba la reconstrucción por `StreamBuilder` de la lista mientras la ruta del diálogo se encontraba en proceso de desactivación, lanzando `Assertion failed: line 6281 pos 12: '_dependents.isEmpty': is not true`.
+- **Solución implementada:**
+  - Se modularizó la creación de clientas y prendas en `StatefulWidget`s desacoplados (`_DialogoNuevaClienta` y `_DialogoAgregarPrenda`).
+  - El ciclo de vida de los controladores está confinado a su propio `State.dispose()`.
+  - La operación de guardado en Firestore se completa con indicador de progreso en el botón antes de cerrar el diálogo, evitando cualquier colisión con el ciclo de vida del árbol de widgets.
+
+### E. Aislamiento y Segregación de Clientes por Negocio (`adminId`)
+- **Problema previo:** Todos los administradores y secretarios consultaban la colección global `clientes` sin ningún filtro, provocando que cualquier cuenta viera exactamente los mismos clientes sin importar la tienda a la que pertenecían. Además, al crear una clienta no se asociaba el `adminId` del negocio correspondiente.
+- **Solución implementada:**
+  - Se agregó la resolución automática de `_adminId` en [clients_screen.dart](file:///c:/Users/crist/Desktop/VENDIX/flutter_application_1/lib/screens/secretary/clients_screen.dart) y [quick_sales_screen.dart](file:///c:/Users/crist/Desktop/VENDIX/flutter_application_1/lib/screens/secretary/quick_sales_screen.dart).
+  - Al abrir desde el administrador ([admin_home_screen.dart](file:///c:/Users/crist/Desktop/VENDIX/flutter_application_1/lib/screens/admin/admin_home_screen.dart)), se pasa explícitamente `widget.admin.id`.
+  - Al abrir desde el secretario, el sistema recupera el `adminId` del emprendedor al que fue asignado el secretario.
+  - Al registrar una nueva clienta, se almacena de forma mandatoria: `'adminId': adminId`, `'creadoPor': currentUid`, asegurando que cada tienda opere de forma aislada.
+  - Las listas y buscadores de clientas filtran en tiempo real para desplegar únicamente a los clientes del negocio en sesión.
+
+### F. Remoción de Opciones de Pagos y Abonos
+- Conforme a los requerimientos del flujo operativo:
+  - Se eliminó la tarjeta "Gestión de pagos" en [admin_more_screen.dart](file:///c:/Users/crist/Desktop/VENDIX/flutter_application_1/lib/screens/admin/admin_more_screen.dart).
+  - Se eliminó la opción "Pagos" en [more_screen.dart](file:///c:/Users/crist/Desktop/VENDIX/flutter_application_1/lib/screens/secretary/more_screen.dart).
+  - Se removió el botón "Registrar pago" del modal de resumen de clientas en [clients_screen.dart](file:///c:/Users/crist/Desktop/VENDIX/flutter_application_1/lib/screens/secretary/clients_screen.dart).
+
+### G. Navegación al Perfil al Tocar el Avatar Superior Derecho
+- En [client_home_screen.dart](file:///c:/Users/crist/Desktop/VENDIX/flutter_application_1/lib/screens/client/client_home_screen.dart) y [client_shell.dart](file:///c:/Users/crist/Desktop/VENDIX/flutter_application_1/lib/screens/client/client_shell.dart), al tocar el avatar de la esquina superior derecha se activa la redirección inmediata a la pestaña y vista del perfil del cliente.
+- En [home_screen.dart](file:///c:/Users/crist/Desktop/VENDIX/flutter_application_1/lib/screens/secretary/home_screen.dart), al tocar el avatar superior se abre la sección de perfil y opciones del secretario (`MoreScreen`).
+
 

@@ -459,7 +459,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const ClientsScreen()),
+              MaterialPageRoute(
+                builder: (_) => ClientsScreen(adminId: widget.admin.id),
+              ),
             );
           },
         ),
