@@ -1,8 +1,8 @@
 # 🚀 Estado Integral del Proyecto VENDIX Unificado
 
-> **Fecha de Consolidación:** 12 de Noviembre de 2026  
-> **Proyecto:** VENDIX — Solución Tecnológica Omnicanal para Ventas en Vivo (Live Shopping)  
-> **Estado de Compilación:** `flutter analyze lib/` → **0 errores / 0 advertencias**  
+> **Fecha de Consolidación:** 12 de Noviembre de 2026
+> **Proyecto:** VENDIX — Solución Tecnológica Omnicanal para Ventas en Vivo (Live Shopping)
+> **Estado de Compilación:** `flutter analyze lib/` → **0 errores / 0 advertencias**
 > **Repositorio:** Unificado en rama `main`
 
 ---
@@ -28,6 +28,7 @@ El proyecto **VENDIX** ha alcanzado su punto de convergencia arquitectónica, in
 ## 2. 🏛️ Arquitectura Técnica y Tecnologías
 
 ### 2.1. Pila Tecnológica
+
 - **Framework Frontend:** Flutter 3.x (Dart 3.x), compilable en Android (APK/AAB), Web (HTML5/CanvasKit) y Escritorio Windows.
 - **Autenticación:** Firebase Authentication (Correo/Contraseña + Google OAuth 2.0 con protección ante bloqueadores Brave).
 - **Base de Datos NoSQL:** Google Cloud Firestore en tiempo real con sincronización offline.
@@ -88,39 +89,45 @@ lib/
 
 ## 3. 👥 Matriz de Roles y Permisos
 
-| Capacidad | Cliente | Secretaria | Emprendedor |
-|---|:---:|:---:|:---:|
-| Ver catálogo y saldo personal | ✅ | ✅ | ✅ |
-| Consultar Asistente IA (Gemini) | ✅ | ❌ | ❌ |
-| Postularse como Secretario | ✅ | ❌ | ❌ |
-| Alternar entre Cliente y Secretario | ✅ (con empleo aprobado) | ✅ | ❌ |
-| Registrar ventas en vivo en el Live | ❌ | ✅ | ✅ |
-| Crear y administrar clientas | ❌ | ✅ | ✅ |
-| Registrar abonos y pagos de clientas | ❌ | ✅ | ✅ |
-| Consultar estadísticas con calendario | ❌ | ✅ | ✅ |
-| Modificar catálogo y precios oficiales | ❌ | ❌ | ✅ |
-| Aprobar o rechazar secretarios | ❌ | ❌ | ✅ |
-| Configurar nombre de la tienda física | ❌ | ❌ | ✅ |
+| Capacidad                               |         Cliente         | Secretaria | Emprendedor |
+| --------------------------------------- | :----------------------: | :--------: | :---------: |
+| Ver catálogo y saldo personal          |            ✅            |     ✅     |     ✅     |
+| Consultar Asistente IA (Gemini)         |            ✅            |     ❌     |     ❌     |
+| Postularse como Secretario              |            ✅            |     ❌     |     ❌     |
+| Alternar entre Cliente y Secretario     | ✅ (con empleo aprobado) |     ✅     |     ❌     |
+| Registrar ventas en vivo en el Live     |            ❌            |     ✅     |     ✅     |
+| Crear y administrar clientas            |            ❌            |     ✅     |     ✅     |
+| Registrar abonos y pagos de clientas    |            ❌            |     ✅     |     ✅     |
+| Consultar estadísticas con calendario  |            ❌            |     ✅     |     ✅     |
+| Modificar catálogo y precios oficiales |            ❌            |     ❌     |     ✅     |
+| Aprobar o rechazar secretarios          |            ❌            |     ❌     |     ✅     |
+| Configurar nombre de la tienda física  |            ❌            |     ❌     |     ✅     |
 
 ---
 
 ## 4. 🗄️ Esquema de Base de Datos en Cloud Firestore
 
 ### 4.1. Colección `usuarios`
+
 Identidad central vinculada al UID de Firebase Authentication:
+
 - `uid` (String): ID único del usuario.
 - `nombre` (String), `apellido` (String), `correo` (String), `telefono` (String).
 - `rol` (String): `'cliente'` o `'administrador'`.
 - `codigoLive` (String): Código activo si está vinculada a una secretaria.
 
 ### 4.2. Colección `Administradores`
+
 Ficha comercial de los emprendedores:
+
 - `nombre` (String), `apellido` (String), `email` (String), `telefono` (String).
 - `nombreEmprendimiento` (String): Nombre oficial de la tienda o marca comercial.
 - `estado` (Boolean): Estado activo del negocio.
 
 ### 4.3. Colección `secretarios`
+
 Registros laborales y postulaciones:
+
 - `uid` (String): ID del cliente que ejerce como secretario.
 - `adminId` (String): ID del emprendedor que lo contrata.
 - `nombreEmprendimiento` (String): Nombre del negocio donde labora.
@@ -128,19 +135,25 @@ Registros laborales y postulaciones:
 - `codigoLive` (String): Código alfanumérico generado para vincular clientas durante transmisiones en vivo.
 
 ### 4.4. Colección `clientes`
+
 Fichas comerciales de las clientas atendidas:
+
 - `nombre` (String), `telefono` (String), `direccion` (String).
 - `uid` (String, opcional): UID si la clienta creó su cuenta en la app móvil.
 - `saldo` (Double): Saldo deudor sincronizado.
 
 ### 4.5. Colección `compras`
+
 Transacciones registradas durante los directos:
+
 - `clienteId` (String), `clienteNombre` (String).
 - `prenda` / `prendaNombre` (String), `precio` (Double), `cantidad` (Int), `subtotal` / `total` (Double).
 - `fecha` (Timestamp): Momento del apartado en vivo.
 
 ### 4.6. Colección `pagos`
+
 Abonos realizados por las clientas:
+
 - `clienteId` (String), `clienteNombre` (String).
 - `monto` (Double): Valor cancelado.
 - `observacion` (String): Forma de pago (ej. "Efectivo", "Transferencia").
@@ -179,6 +192,7 @@ sequenceDiagram
 ## 6. 🧰 Herramientas y Scripts de Automatización
 
 El proyecto cuenta con scripts por lotes en la raíz para facilitar el trabajo diario:
+
 - **`run_vendix.bat`:** Menú interactivo multiplataforma (Chrome, Edge, Brave, Teléfono Android USB, Emulador MuMuPlayer).
 - **`generar_apk.bat`:** Compilación automatizada de release APK optimizado en la carpeta `apk/`.
 - **`serve_web.ps1`:** Servidor HTTP local de alto rendimiento con cabeceras `no-cache` para depuración web instantánea.
@@ -192,3 +206,33 @@ El proyecto cuenta con scripts por lotes en la raíz para facilitar el trabajo d
 - **Validación de Tipos Numéricos:** Blindaje frente a discrepancias de tipo entre `String` y `num` mediante conversores seguros.
 - **Codificación:** 100% UTF-8 limpio sin BOM ni secuencias corruptas.
 - **Seguridad:** Claves privadas aisladas mediante `lib/secrets.dart` y protegidas de forma garantizada en `.gitignore`.
+
+---
+
+## 8. Actualización de Interfaz y Estabilidad (13/11/2026)
+
+### A. Visor de Foto de Perfil en Pantalla Completa (Lightbox Interactivo)
+- **Problema previo:** Al tocar el avatar de perfil propio, únicamente se desplegaba el selector de acciones de WhatsApp (Cámara, Galería, Enlace, Borrar), sin posibilidad de admirar o verificar la imagen completa. Además, en los paneles de administración y secretaría, los perfiles de clientes y secretarios mostraban únicamente iniciales de texto fijas, impidiendo consultar la imagen de perfil real.
+- **Implementación técnica (`PerfilFotoService`):**
+  - Se introdujo `verFotoCompleta(context, {fotoData, titulo, subtitulo})`, que monta un lightbox modal con fondo translúcido oscuro, encabezado con detalles y botón de salida, y un `InteractiveViewer` que permite hacer zoom táctil (de 0.8x a 4.0x) y paneo libre en la foto.
+  - Se incorporó la opción explícita **"Ver foto"** dentro del menú estilo WhatsApp `mostrarOpcionesFotoWhatsApp`.
+  - En `avatarConInsignia`: al pulsar sobre la foto se despliega el visor completo, mientras que al tocar el ícono de cámara se despliega el menú de edición de imagen.
+  - Se creó el widget estandarizado `PerfilFotoService.avatarWidget(...)` para renderizar avatares con sincronización en vivo (`PerfilFotoService.fotoStream`), con fallback a iniciales estéticas y apertura automática del visor en pantalla completa al pulsar.
+  - Se integró el visor en:
+    - [admin_profile_screen.dart](file:///c:/Users/crist/Desktop/VENDIX/flutter_application_1/lib/screens/admin/admin_profile_screen.dart)
+    - [client_profile_screen.dart](file:///c:/Users/crist/Desktop/VENDIX/flutter_application_1/lib/screens/client/client_profile_screen.dart)
+    - [more_screen.dart](file:///c:/Users/crist/Desktop/VENDIX/flutter_application_1/lib/screens/secretary/more_screen.dart)
+    - [admin_more_screen.dart](file:///c:/Users/crist/Desktop/VENDIX/flutter_application_1/lib/screens/admin/admin_more_screen.dart) (tanto en tarjeta del emprendedor, solicitudes de secretarios pendientes y secretarios activos).
+    - [clients_screen.dart](file:///c:/Users/crist/Desktop/VENDIX/flutter_application_1/lib/screens/secretary/clients_screen.dart) (lista general de clientas, resumen modal de clienta e historial).
+
+### B. Corrección de Pantalla Roja y Aserción en Registro de Pagos
+- **Causa raíz:** En `clients_screen.dart`, el modal de resumen de clienta cerraba su ruta e inmediatamente abría el modal de registro de pago en el mismo tick (`Navigator.pop(); _registrarPago()`), causando colisión entre animaciones de transición de rutas en Flutter Web. Adicionalmente, el controlador de texto se liberaba en un `whenComplete` asíncrono mientras el stream de Firestore reconstruía la pantalla principal, disparando la aserción interna `_dependents.isEmpty is not true`.
+- **Solución implementada:**
+  - El modal de resumen ahora devuelve un token de acción limpio (`Navigator.pop(context, 'pago')`). El llamador espera a que el modal termine de desmontarse antes de invocar `_registrarPago`.
+  - Se encapsuló el formulario de pago dentro de un `StatefulWidget` dedicado (`_ModalRegistrarPago`), que gestiona su propio `TextEditingController` y `GlobalKey<FormState>` con ciclo de vida seguro (`dispose()`), confirmación visual durante el guardado y reporte de éxito por `SnackBar` sin colisión de `BuildContext`.
+
+### C. Eliminación de Desbordamiento Visual en Historial de Clientas
+- **Causa raíz:** El diálogo de historial utilizaba un `Column(mainAxisSize: MainAxisSize.min)` dentro del bottom sheet; al acumular más de 4 o 5 compras o pagos registrados, el contenido excedía el alto de la ventana generando la barra rayada amarilla/negra `BOTTOM OVERFLOWED BY 203 PIXELS`.
+- **Solución implementada:**
+  - Se reestructuró `_verHistorial` utilizando `DraggableScrollableSheet` con `ListView`, drag handle central, tarjeta de cliente con avatar interactivo y secciones independientes para compras y abonos con contadores, fechas legibles y estado vacío estilizado. Cero desbordamientos para cualquier cantidad de transacciones.
+

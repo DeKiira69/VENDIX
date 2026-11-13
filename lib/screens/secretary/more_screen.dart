@@ -130,8 +130,11 @@ class _MoreScreenState extends State<MoreScreen> {
                   stream: PerfilFotoService.fotoStream(usuarioId),
                   builder: (context, snapshot) {
                     return PerfilFotoService.avatarConInsignia(
+                      context: context,
                       fotoData: snapshot.data,
                       iniciales: iniciales.isEmpty ? '?' : iniciales,
+                      nombreUsuario: nombreFinal,
+                      rolUsuario: 'Secretaria',
                       radio: 26,
                       onTap: () {
                         if (usuarioId.isEmpty) return;

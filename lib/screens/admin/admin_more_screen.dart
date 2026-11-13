@@ -103,24 +103,15 @@ class AdminMoreScreen extends StatelessWidget {
                   StreamBuilder<String?>(
                     stream: PerfilFotoService.fotoStream(admin.id),
                     builder: (context, fotoSnap) {
-                      final foto = fotoSnap.data;
-                      if (foto != null && foto.isNotEmpty) {
-                        return CircleAvatar(
-                          radius: 24,
-                          backgroundColor: const Color(0x55FFFFFF),
-                          backgroundImage: NetworkImage(foto),
-                        );
-                      }
-                      return CircleAvatar(
+                      return PerfilFotoService.avatarWidget(
+                        context: context,
+                        fotoData: fotoSnap.data,
+                        iniciales: admin.iniciales,
+                        nombre: admin.nombre,
+                        subtitulo: 'Administrador',
                         radius: 24,
                         backgroundColor: const Color(0x55FFFFFF),
-                        child: Text(
-                          admin.iniciales,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        textColor: Colors.white,
                       );
                     },
                   ),
@@ -572,6 +563,8 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
               children: filteredDocs.map((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 final docId = doc.id;
+                final usuarioId = (data['usuarioId'] ?? docId).toString();
+                final fotoDirecta = data['fotoUrl']?.toString() ?? data['fotoBase64']?.toString();
                 final nombre = (data['nombre'] ?? 'Sin nombre').toString();
                 final telefono = (data['telefono'] ?? '').toString();
                 final correo = (data['correo'] ?? '').toString();
@@ -600,17 +593,21 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                       children: [
                         Row(
                           children: [
-                            CircleAvatar(
-                              radius: 19,
-                              backgroundColor: const Color(0xFFFFE0B2),
-                              child: Text(
-                                iniciales,
-                                style: const TextStyle(
-                                  color: Color(0xFFD35400),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
-                              ),
+                            StreamBuilder<String?>(
+                              stream: PerfilFotoService.fotoStream(usuarioId),
+                              builder: (context, snap) {
+                                final foto = snap.data ?? fotoDirecta;
+                                return PerfilFotoService.avatarWidget(
+                                  context: context,
+                                  fotoData: foto,
+                                  iniciales: iniciales,
+                                  nombre: nombre,
+                                  subtitulo: 'Solicitud de empleo - $correo',
+                                  radius: 20,
+                                  backgroundColor: const Color(0xFFFFE0B2),
+                                  textColor: const Color(0xFFD35400),
+                                );
+                              },
                             ),
                             const SizedBox(width: 10),
                             Expanded(
@@ -720,17 +717,21 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                   ),
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                    leading: CircleAvatar(
-                      radius: 19,
-                      backgroundColor: const Color(0xFFF0E9FC),
-                      child: Text(
-                        iniciales,
-                        style: const TextStyle(
-                          color: AppTheme.violet,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
+                    leading: StreamBuilder<String?>(
+                      stream: PerfilFotoService.fotoStream(usuarioId),
+                      builder: (context, snap) {
+                        final foto = snap.data ?? fotoDirecta;
+                        return PerfilFotoService.avatarWidget(
+                          context: context,
+                          fotoData: foto,
+                          iniciales: iniciales,
+                          nombre: nombre,
+                          subtitulo: 'Secretario/a - ${telefono.isNotEmpty ? telefono : correo}',
+                          radius: 20,
+                          backgroundColor: const Color(0xFFF0E9FC),
+                          textColor: AppTheme.violet,
+                        );
+                      },
                     ),
                     title: Text(
                       nombre,

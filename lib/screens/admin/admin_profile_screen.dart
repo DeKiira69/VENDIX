@@ -448,8 +448,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                     stream: PerfilFotoService.fotoStream(uid),
                     builder: (context, fotoSnap) {
                       return PerfilFotoService.avatarConInsignia(
+                        context: context,
                         fotoData: fotoSnap.data,
                         iniciales: iniciales.isEmpty ? 'AD' : iniciales,
+                        nombreUsuario: nombreCompleto,
+                        rolUsuario: 'Administrador',
                         radio: 42,
                         onTap: () {
                           PerfilFotoService.mostrarOpcionesFotoWhatsApp(

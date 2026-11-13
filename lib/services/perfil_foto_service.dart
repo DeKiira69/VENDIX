@@ -99,6 +99,204 @@ class PerfilFotoService {
     await batch.commit();
   }
 
+  /// Retorna un [ImageProvider] a partir de una URL o Base64.
+  static ImageProvider? obtenerImageProvider(String? fotoData) {
+    if (fotoData == null || fotoData.trim().isEmpty) return null;
+    final data = fotoData.trim();
+    if (data.startsWith('http://') || data.startsWith('https://')) {
+      return NetworkImage(data);
+    }
+    try {
+      final cleanBase64 = data.contains(',') ? data.split(',').last : data;
+      return MemoryImage(base64Decode(cleanBase64));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Visor a pantalla completa (lightbox) para visualizar cualquier foto de perfil
+  /// con soporte de zoom táctil (InteractiveViewer) y diseño oscuro elegante.
+  static void verFotoCompleta(
+    BuildContext context, {
+    required String? fotoData,
+    required String titulo,
+    String? subtitulo,
+  }) {
+    final imageProvider = obtenerImageProvider(fotoData);
+
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.9),
+      builder: (dialogCtx) {
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          body: SafeArea(
+            child: Stack(
+              children: [
+                // Imagen central con zoom interactivo
+                Center(
+                  child: imageProvider != null
+                      ? InteractiveViewer(
+                          minScale: 0.8,
+                          maxScale: 4.0,
+                          child: Image(
+                            image: imageProvider,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Icon(Icons.broken_image,
+                                    size: 64, color: Colors.white70),
+                                SizedBox(height: 12),
+                                Text(
+                                  'No se pudo cargar la imagen',
+                                  style: TextStyle(color: Colors.white70),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 120,
+                              height: 120,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0xFF56349D),
+                              ),
+                              child: const Icon(
+                                Icons.person,
+                                size: 70,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Sin foto de perfil registrada',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+
+                // Barra superior con título y botón de cierre
+                Positioned(
+                  top: 10,
+                  left: 12,
+                  right: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back, color: Colors.white),
+                          tooltip: 'Cerrar',
+                          onPressed: () => Navigator.pop(dialogCtx),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                titulo,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (subtitulo != null && subtitulo.isNotEmpty)
+                                Text(
+                                  subtitulo,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.7),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white),
+                          tooltip: 'Cerrar',
+                          onPressed: () => Navigator.pop(dialogCtx),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Widget reusable de avatar circular para clientes, secretarios y administradores.
+  /// Muestra la imagen si existe o las iniciales. Al hacer clic abre el visor completo.
+  static Widget avatarWidget({
+    required BuildContext context,
+    required String? fotoData,
+    required String iniciales,
+    required String nombre,
+    String? subtitulo,
+    double radius = 20,
+    Color backgroundColor = const Color(0xFFF0E9FC),
+    Color textColor = AppTheme.violet,
+    VoidCallback? onTap,
+  }) {
+    final imageProvider = obtenerImageProvider(fotoData);
+
+    return InkWell(
+      onTap: onTap ??
+          () {
+            verFotoCompleta(
+              context,
+              fotoData: fotoData,
+              titulo: nombre,
+              subtitulo: subtitulo,
+            );
+          },
+      borderRadius: BorderRadius.circular(radius + 2),
+      child: CircleAvatar(
+        radius: radius,
+        backgroundColor: backgroundColor,
+        backgroundImage: imageProvider,
+        child: imageProvider == null
+            ? Text(
+                iniciales.trim().isEmpty ? '?' : iniciales.trim(),
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: radius * 0.65,
+                ),
+              )
+            : null,
+      ),
+    );
+  }
+
   /// Muestra el menú inferior estilo WhatsApp para cambiar o eliminar la foto.
   static Future<void> mostrarOpcionesFotoWhatsApp({
     required BuildContext context,
@@ -168,52 +366,70 @@ class PerfilFotoService {
               ),
               const SizedBox(height: 18),
 
-              // Opciones estilo WhatsApp (Cámara, Galería, Enlace)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _opcionBoton(
-                    icono: Icons.camera_alt,
-                    color: const Color(0xFF15966B),
-                    etiqueta: 'Camara',
-                    onTap: () async {
-                      Navigator.pop(bottomSheetContext);
-                      await _seleccionarYGuardar(
-                        context: context,
-                        source: ImageSource.camera,
-                        usuarioId: usuarioId,
-                        rol: rol,
-                      );
-                    },
-                  ),
-                  _opcionBoton(
-                    icono: Icons.photo_library,
-                    color: AppTheme.violet,
-                    etiqueta: 'Galeria',
-                    onTap: () async {
-                      Navigator.pop(bottomSheetContext);
-                      await _seleccionarYGuardar(
-                        context: context,
-                        source: ImageSource.gallery,
-                        usuarioId: usuarioId,
-                        rol: rol,
-                      );
-                    },
-                  ),
-                  _opcionBoton(
-                    icono: Icons.link,
-                    color: AppTheme.orange,
-                    etiqueta: 'Enlace web',
-                    onTap: () async {
-                      Navigator.pop(bottomSheetContext);
-                      await _pedirEnlaceWeb(
-                        context: context,
-                        usuarioId: usuarioId,
-                        rol: rol,
-                      );
-                    },
-                  ),
-                ],
+              // Opciones estilo WhatsApp (Ver foto, Cámara, Galería, Enlace)
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    if (fotoActual != null && fotoActual.isNotEmpty)
+                      _opcionBoton(
+                        icono: Icons.visibility,
+                        color: AppTheme.violet,
+                        etiqueta: 'Ver foto',
+                        onTap: () {
+                          Navigator.pop(bottomSheetContext);
+                          verFotoCompleta(
+                            context,
+                            fotoData: fotoActual,
+                            titulo: 'Foto de perfil',
+                            subtitulo: rol?.toUpperCase(),
+                          );
+                        },
+                      ),
+                    _opcionBoton(
+                      icono: Icons.camera_alt,
+                      color: const Color(0xFF15966B),
+                      etiqueta: 'Cámara',
+                      onTap: () async {
+                        Navigator.pop(bottomSheetContext);
+                        await _seleccionarYGuardar(
+                          context: context,
+                          source: ImageSource.camera,
+                          usuarioId: usuarioId,
+                          rol: rol,
+                        );
+                      },
+                    ),
+                    _opcionBoton(
+                      icono: Icons.photo_library,
+                      color: AppTheme.violet,
+                      etiqueta: 'Galería',
+                      onTap: () async {
+                        Navigator.pop(bottomSheetContext);
+                        await _seleccionarYGuardar(
+                          context: context,
+                          source: ImageSource.gallery,
+                          usuarioId: usuarioId,
+                          rol: rol,
+                        );
+                      },
+                    ),
+                    _opcionBoton(
+                      icono: Icons.link,
+                      color: AppTheme.orange,
+                      etiqueta: 'Enlace web',
+                      onTap: () async {
+                        Navigator.pop(bottomSheetContext);
+                        await _pedirEnlaceWeb(
+                          context: context,
+                          usuarioId: usuarioId,
+                          rol: rol,
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 8),
             ],
@@ -359,23 +575,32 @@ class PerfilFotoService {
 
   /// Construye el Avatar circular que muestra la foto de perfil en Base64 o URL,
   /// o las iniciales si no tiene foto, junto a la insignia de la cámara estilo WhatsApp.
+  /// Si tiene foto, al pulsar la imagen se visualiza a pantalla completa con zoom,
+  /// y al pulsar la cámara se abren las opciones para cambiar o eliminar.
   static Widget avatarConInsignia({
+    BuildContext? context,
     required String? fotoData,
     required String iniciales,
     required double radio,
     required VoidCallback onTap,
+    VoidCallback? onVerFoto,
+    String? nombreUsuario,
+    String? rolUsuario,
   }) {
-    ImageProvider? imageProvider;
-    if (fotoData != null && fotoData.isNotEmpty) {
-      if (fotoData.startsWith('http://') || fotoData.startsWith('https://')) {
-        imageProvider = NetworkImage(fotoData);
+    final imageProvider = obtenerImageProvider(fotoData);
+
+    void abrirVisor() {
+      if (onVerFoto != null) {
+        onVerFoto();
+      } else if (context != null && fotoData != null && fotoData.isNotEmpty) {
+        verFotoCompleta(
+          context,
+          fotoData: fotoData,
+          titulo: nombreUsuario ?? 'Foto de perfil',
+          subtitulo: rolUsuario,
+        );
       } else {
-        try {
-          final cleanBase64 = fotoData.contains(',')
-              ? fotoData.split(',').last
-              : fotoData;
-          imageProvider = MemoryImage(base64Decode(cleanBase64));
-        } catch (_) {}
+        onTap();
       }
     }
 
@@ -384,7 +609,7 @@ class PerfilFotoService {
         clipBehavior: Clip.none,
         children: [
           InkWell(
-            onTap: onTap,
+            onTap: (fotoData != null && fotoData.isNotEmpty) ? abrirVisor : onTap,
             borderRadius: BorderRadius.circular(radio + 4),
             child: CircleAvatar(
               radius: radio,

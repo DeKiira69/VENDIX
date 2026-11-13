@@ -88,8 +88,11 @@ class ClientProfileScreen extends StatelessWidget {
                         final foto = fotoSnap.data ?? cliente['fotoBase64']?.toString();
 
                         return PerfilFotoService.avatarConInsignia(
+                          context: context,
                           fotoData: foto,
                           iniciales: iniciales.isEmpty ? 'C' : iniciales,
+                          nombreUsuario: nombre,
+                          rolUsuario: 'Cliente',
                           radio: 38,
                           onTap: () {
                             PerfilFotoService.mostrarOpcionesFotoWhatsApp(

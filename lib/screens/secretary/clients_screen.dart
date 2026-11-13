@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/prenda_model.dart';
+import '../../services/perfil_foto_service.dart';
 import '../../theme/app_theme.dart';
 
 class _ClienteData {
@@ -9,6 +10,7 @@ class _ClienteData {
   final String nombre;
   final String telefono;
   final String direccion;
+  final String? fotoUrl;
   final int prendas;
   final double totalComprado;
   final double totalPagado;
@@ -21,6 +23,7 @@ class _ClienteData {
     required this.nombre,
     required this.telefono,
     required this.direccion,
+    this.fotoUrl,
     required this.prendas,
     required this.totalComprado,
     required this.totalPagado,
@@ -116,6 +119,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                       final nombre = data['nombre']?.toString() ?? 'Sin nombre';
                       final telefono = data['telefono']?.toString() ?? '';
                       final direccion = data['direccion']?.toString() ?? '';
+                      final fotoUrl = (data['fotoUrl'] ?? data['fotoBase64'])?.toString();
 
                       final compras = mapCompras[id] ?? [];
                       final pagos = mapPagos[id] ?? [];
@@ -142,6 +146,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                         nombre: nombre,
                         telefono: telefono,
                         direccion: direccion,
+                        fotoUrl: fotoUrl,
                         prendas: totalPrendas,
                         totalComprado: totalComprado,
                         totalPagado: totalPagado,
@@ -289,16 +294,21 @@ class _ClientsScreenState extends State<ClientsScreen> {
                                           horizontal: 12,
                                           vertical: 5,
                                         ),
-                                        leading: CircleAvatar(
-                                          backgroundColor: const Color(0xFFFFEEF6),
-                                          child: Text(
-                                            iniciales.isEmpty ? 'C' : iniciales,
-                                            style: const TextStyle(
-                                              color: AppTheme.violet,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
+                                        leading: StreamBuilder<String?>(
+                                          stream: PerfilFotoService.fotoStream(cliente.id),
+                                          builder: (context, snap) {
+                                            final foto = snap.data ?? cliente.fotoUrl;
+                                            return PerfilFotoService.avatarWidget(
+                                              context: context,
+                                              fotoData: foto,
+                                              iniciales: iniciales.isEmpty ? 'C' : iniciales,
+                                              nombre: cliente.nombre,
+                                              subtitulo: 'Cliente - ${cliente.telefono}',
+                                              radius: 20,
+                                              backgroundColor: const Color(0xFFFFEEF6),
+                                              textColor: AppTheme.violet,
+                                            );
+                                          },
                                         ),
                                         title: Text(
                                           cliente.nombre,
@@ -458,8 +468,8 @@ class _ClientsScreenState extends State<ClientsScreen> {
     });
   }
 
-  void _resumenCliente(_ClienteData cliente) {
-    showModalBottomSheet<void>(
+  Future<void> _resumenCliente(_ClienteData cliente) async {
+    final accion = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -498,16 +508,21 @@ class _ClientsScreenState extends State<ClientsScreen> {
                   const SizedBox(height: 22),
                   Row(
                     children: [
-                      CircleAvatar(
-                        radius: 25,
-                        backgroundColor: const Color(0xFFFFEEF6),
-                        child: Text(
-                          iniciales.isEmpty ? 'C' : iniciales,
-                          style: const TextStyle(
-                            color: AppTheme.violet,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                      StreamBuilder<String?>(
+                        stream: PerfilFotoService.fotoStream(cliente.id),
+                        builder: (context, snap) {
+                          final foto = snap.data ?? cliente.fotoUrl;
+                          return PerfilFotoService.avatarWidget(
+                            context: context,
+                            fotoData: foto,
+                            iniciales: iniciales.isEmpty ? 'C' : iniciales,
+                            nombre: cliente.nombre,
+                            subtitulo: 'Cliente - ${cliente.telefono}',
+                            radius: 26,
+                            backgroundColor: const Color(0xFFFFEEF6),
+                            textColor: AppTheme.violet,
+                          );
+                        },
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -677,10 +692,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                     children: [
                       Expanded(
                         child: FilledButton.icon(
-                          onPressed: () {
-                            Navigator.pop(sheetContext);
-                            _agregarPrenda(cliente);
-                          },
+                          onPressed: () => Navigator.pop(sheetContext, 'prenda'),
                           icon: const Icon(Icons.add),
                           label: const Text('Agregar prenda'),
                           style: FilledButton.styleFrom(
@@ -692,10 +704,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(sheetContext);
-                            _registrarPago(cliente);
-                          },
+                          onPressed: () => Navigator.pop(sheetContext, 'pago'),
                           icon: const Icon(Icons.account_balance_wallet_outlined),
                           label: const Text('Registrar pago'),
                           style: OutlinedButton.styleFrom(
@@ -708,10 +717,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                   ),
                   const SizedBox(height: 6),
                   TextButton.icon(
-                    onPressed: () {
-                      Navigator.pop(sheetContext);
-                      _verHistorial(cliente);
-                    },
+                    onPressed: () => Navigator.pop(sheetContext, 'historial'),
                     icon: const Icon(Icons.history),
                     label: const Text('Ver historial'),
                   ),
@@ -722,6 +728,15 @@ class _ClientsScreenState extends State<ClientsScreen> {
         );
       },
     );
+
+    if (!mounted || accion == null) return;
+    if (accion == 'prenda') {
+      _agregarPrenda(cliente);
+    } else if (accion == 'pago') {
+      _registrarPago(cliente);
+    } else if (accion == 'historial') {
+      _verHistorial(cliente);
+    }
   }
 
   Widget _filaTotal(String titulo, double monto) {
@@ -852,221 +867,172 @@ class _ClientsScreenState extends State<ClientsScreen> {
       return;
     }
 
-    final montoController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (modalContext, actualizarDialogo) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(modalContext).viewInsets.bottom,
-              ),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(20, 26, 20, 24),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-                ),
-                child: Form(
-                  key: formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'REGISTRAR PAGO',
-                        style: TextStyle(
-                          color: AppTheme.violet,
-                          fontSize: 10,
-                          letterSpacing: 1,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Pago de ${cliente.nombre}',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.dark,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFF0E9),
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: Row(
-                          children: [
-                            const Expanded(
-                              child: Text(
-                                'Saldo pendiente',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0xFFD65C3B),
-                                ),
-                              ),
-                            ),
-                            Text(
-                              '\$${cliente.deuda.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontSize: 21,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFFD65C3B),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      const Text(
-                        'Monto del pago',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        controller: montoController,
-                        autofocus: false,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        decoration: const InputDecoration(
-                          prefixText: '\$ ',
-                          hintText: '0.00',
-                        ),
-                        validator: (value) {
-                          final monto = double.tryParse(
-                            (value ?? '').replaceAll(',', '.'),
-                          );
-                          if (monto == null || monto <= 0) {
-                            return 'Ingresa un monto válido';
-                          }
-                          if (monto > cliente.deuda + 0.001) {
-                            return 'El pago supera el saldo pendiente';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 7,
-                        runSpacing: 7,
-                        children: [
-                          for (final monto in [10.0, 20.0, cliente.deuda])
-                            OutlinedButton(
-                              onPressed: () {
-                                actualizarDialogo(() {
-                                  montoController.text = monto.toStringAsFixed(2);
-                                });
-                              },
-                              child: Text(
-                                monto == cliente.deuda
-                                    ? 'Saldo total'
-                                    : '\$${monto.toStringAsFixed(0)}',
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: () async {
-                            if (!formKey.currentState!.validate()) return;
-                            final monto = double.parse(
-                              montoController.text.replaceAll(',', '.'),
-                            );
+      builder: (sheetCtx) => _ModalRegistrarPago(
+        cliente: cliente,
+        onConfirmar: (monto) async {
+          await _db.collection('pagos').add({
+            'clienteId': cliente.id,
+            'clienteNombre': cliente.nombre,
+            'monto': monto,
+            'observacion': 'Abono desde clientas',
+            'fecha': FieldValue.serverTimestamp(),
+          });
 
-                            Navigator.pop(sheetContext);
+          final nuevoSaldo = (cliente.deuda - monto).clamp(0.0, double.infinity);
+          try {
+            await _db.collection('clientes').doc(cliente.id).set({
+              'saldo': nuevoSaldo,
+              'ultimoPago': monto,
+              'fechaUltimoPago': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+          } catch (_) {}
 
-                            await _db.collection('pagos').add({
-                              'clienteId': cliente.id,
-                              'clienteNombre': cliente.nombre,
-                              'monto': monto,
-                              'observacion': 'Abono desde clientas',
-                              'fecha': FieldValue.serverTimestamp(),
-                            });
-
-                            final nuevoSaldo = (cliente.deuda - monto).clamp(0.0, double.infinity);
-                            try {
-                              await _db.collection('clientes').doc(cliente.id).set({
-                                'saldo': nuevoSaldo,
-                                'ultimoPago': monto,
-                                'fechaUltimoPago': FieldValue.serverTimestamp(),
-                              }, SetOptions(merge: true));
-                            } catch (_) {}
-
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Pago registrado correctamente'),
-                                ),
-                              );
-                            }
-                          },
-                          icon: const Icon(Icons.check),
-                          label: const Text('Confirmar pago'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppTheme.violet,
-                            padding: const EdgeInsets.symmetric(vertical: 15),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Pago registrado correctamente'),
+                backgroundColor: Color(0xFF15966B),
+                behavior: SnackBarBehavior.floating,
               ),
             );
-          },
-        );
-      },
-    ).whenComplete(montoController.dispose);
+          }
+        },
+      ),
+    );
   }
 
   void _verHistorial(_ClienteData cliente) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Historial de ${cliente.nombre}',
-                style: const TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.bold,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => DraggableScrollableSheet(
+        initialChildSize: 0.8,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) {
+          final compras = cliente.compras;
+          final pagos = cliente.pagos;
+
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+            ),
+            child: ListView(
+              controller: scrollController,
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              children: [
+                Center(
+                  child: Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDDD6E3),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Compras',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              if (cliente.compras.isEmpty)
-                const ListTile(title: Text('Sin compras registradas'))
-              else
-                ...cliente.compras.map(
-                  (compra) {
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    PerfilFotoService.avatarWidget(
+                      context: context,
+                      fotoData: cliente.fotoUrl,
+                      iniciales: cliente.nombre.trim().isNotEmpty
+                          ? cliente.nombre.trim()[0].toUpperCase()
+                          : 'C',
+                      nombre: cliente.nombre,
+                      subtitulo: 'Cliente - ${cliente.telefono}',
+                      radius: 22,
+                      backgroundColor: const Color(0xFFFFEEF6),
+                      textColor: AppTheme.violet,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'HISTORIAL COMPLETO',
+                            style: TextStyle(
+                              color: AppTheme.violet,
+                              fontSize: 10,
+                              letterSpacing: 1,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            cliente.nombre,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.dark,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.grey),
+                      onPressed: () => Navigator.pop(sheetCtx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Sección Compras
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: const [
+                        Icon(Icons.shopping_bag_outlined, size: 18, color: AppTheme.violet),
+                        SizedBox(width: 6),
+                        Text(
+                          'Compras',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.dark,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0E9FC),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${compras.length}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.violet,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (compras.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    alignment: Alignment.center,
+                    child: const Text(
+                      'Sin compras registradas',
+                      style: TextStyle(color: AppTheme.muted, fontSize: 12),
+                    ),
+                  )
+                else
+                  ...compras.map((compra) {
                     final nombrePrenda = compra['prendaNombre'] ?? compra['prenda'] ?? 'Prenda';
                     final cant = _toInt(compra['cantidad']);
                     final subtotal = _toDouble(compra['total'] ?? compra['subtotal']);
@@ -1074,55 +1040,361 @@ class _ClientsScreenState extends State<ClientsScreen> {
                     String fechaStr = 'Reciente';
                     if (ts is Timestamp) {
                       final f = ts.toDate();
-                      fechaStr = '${f.day}/${f.month}/${f.year}';
+                      fechaStr = '${f.day.toString().padLeft(2, '0')}/${f.month.toString().padLeft(2, '0')}/${f.year}';
                     }
 
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(nombrePrenda),
-                      subtitle: Text('$cant unidades · $fechaStr'),
-                      trailing: Text('\$${subtotal.toStringAsFixed(2)}'),
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFBFBFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFF0EEF4)),
+                      ),
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                        leading: Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0E9FC),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.checkroom, size: 16, color: AppTheme.violet),
+                        ),
+                        title: Text(
+                          nombrePrenda,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          '$cant unidades · $fechaStr',
+                          style: const TextStyle(fontSize: 11, color: AppTheme.muted),
+                        ),
+                        trailing: Text(
+                          '\$${subtotal.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.dark,
+                          ),
+                        ),
+                      ),
                     );
-                  },
+                  }),
+
+                const Divider(height: 32),
+
+                // Sección Pagos
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: const [
+                        Icon(Icons.payments_outlined, size: 18, color: AppTheme.green),
+                        SizedBox(width: 6),
+                        Text(
+                          'Abonos y pagos',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.dark,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F7F0),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${pagos.length}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.green,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              const Divider(),
-              const Text(
-                'Pagos',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              if (cliente.pagos.isEmpty)
-                const ListTile(title: Text('Sin pagos registrados'))
-              else
-                ...cliente.pagos.map(
-                  (pago) {
+                const SizedBox(height: 8),
+                if (pagos.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    alignment: Alignment.center,
+                    child: const Text(
+                      'Sin pagos registrados',
+                      style: TextStyle(color: AppTheme.muted, fontSize: 12),
+                    ),
+                  )
+                else
+                  ...pagos.map((pago) {
                     final monto = _toDouble(pago['monto']);
                     final ts = pago['fecha'];
                     String fechaStr = 'Reciente';
                     if (ts is Timestamp) {
                       final f = ts.toDate();
-                      fechaStr = '${f.day}/${f.month}/${f.year}';
+                      fechaStr = '${f.day.toString().padLeft(2, '0')}/${f.month.toString().padLeft(2, '0')}/${f.year}';
                     }
 
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Abono recibido'),
-                      subtitle: Text(fechaStr),
-                      trailing: Text(
-                        '\$${monto.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          color: AppTheme.green,
-                          fontWeight: FontWeight.bold,
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFBFBFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFF0EEF4)),
+                      ),
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                        leading: Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8F7F0),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.arrow_downward, size: 16, color: AppTheme.green),
+                        ),
+                        title: const Text(
+                          'Abono registrado',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          fechaStr,
+                          style: const TextStyle(fontSize: 11, color: AppTheme.muted),
+                        ),
+                        trailing: Text(
+                          '+\$${monto.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.green,
+                          ),
                         ),
                       ),
                     );
-                  },
+                  }),
+
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(sheetCtx),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: const Text('Cerrar'),
+                  ),
                 ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ModalRegistrarPago extends StatefulWidget {
+  final _ClienteData cliente;
+  final Future<void> Function(double monto) onConfirmar;
+
+  const _ModalRegistrarPago({
+    required this.cliente,
+    required this.onConfirmar,
+  });
+
+  @override
+  State<_ModalRegistrarPago> createState() => _ModalRegistrarPagoState();
+}
+
+class _ModalRegistrarPagoState extends State<_ModalRegistrarPago> {
+  final _montoController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  bool _guardando = false;
+
+  @override
+  void dispose() {
+    _montoController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        ),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDDD6E3),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'REGISTRAR PAGO',
+                style: TextStyle(
+                  color: AppTheme.violet,
+                  fontSize: 10,
+                  letterSpacing: 1,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Pago de ${widget.cliente.nombre}',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.dark,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF0E9),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Saldo pendiente',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFFD65C3B),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '\$${widget.cliente.deuda.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFD65C3B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Monto del pago',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _montoController,
+                autofocus: false,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+                decoration: const InputDecoration(
+                  prefixText: '\$ ',
+                  hintText: '0.00',
+                ),
+                validator: (value) {
+                  final monto = double.tryParse(
+                    (value ?? '').replaceAll(',', '.'),
+                  );
+                  if (monto == null || monto <= 0) {
+                    return 'Ingresa un monto válido';
+                  }
+                  if (monto > widget.cliente.deuda + 0.001) {
+                    return 'El pago supera el saldo pendiente';
+                  }
+                  return null;
+                },
+              ),
               const SizedBox(height: 10),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: [
+                  for (final monto in [10.0, 20.0, widget.cliente.deuda])
+                    OutlinedButton(
+                      onPressed: () {
+                        setState(() {
+                          _montoController.text = monto.toStringAsFixed(2);
+                        });
+                      },
+                      child: Text(
+                        monto == widget.cliente.deuda
+                            ? 'Saldo total'
+                            : '\$${monto.toStringAsFixed(0)}',
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cerrar'),
+                child: FilledButton.icon(
+                  onPressed: _guardando
+                      ? null
+                      : () async {
+                          if (!_formKey.currentState!.validate()) return;
+                          final monto = double.parse(
+                            _montoController.text.replaceAll(',', '.'),
+                          );
+                          setState(() => _guardando = true);
+                          try {
+                            await widget.onConfirmar(monto);
+                            if (!mounted) return;
+                            Navigator.of(this.context).pop();
+                          } catch (e) {
+                            if (!mounted) return;
+                            setState(() => _guardando = false);
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              SnackBar(content: Text('Error al registrar pago: $e')),
+                            );
+                          }
+                        },
+                  icon: _guardando
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.check),
+                  label: Text(_guardando ? 'Guardando...' : 'Confirmar pago'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.violet,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                  ),
                 ),
               ),
             ],
