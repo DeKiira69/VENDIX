@@ -123,6 +123,10 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
         pedido.remove(existente);
         if (pedido.isEmpty) {
           _pedidosPendientes.remove(cId);
+        if (_clienteSeleccionadoId == cId) {
+          _clienteSeleccionadoId = null;
+          _clienteSeleccionadoNombre = '';
+        }
         }
       } else {
         pedido[existente] = cantidad - 1;
@@ -241,6 +245,10 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
     if (mounted) {
       setState(() {
         _pedidosPendientes.remove(cId);
+        if (_clienteSeleccionadoId == cId) {
+          _clienteSeleccionadoId = null;
+          _clienteSeleccionadoNombre = '';
+        }
       });
       _mostrarMensaje('Venta de $nombreCliente registrada correctamente.');
     }
@@ -479,6 +487,8 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
     if (mounted) {
       setState(() {
         _pedidosPendientes.clear();
+        _clienteSeleccionadoId = null;
+        _clienteSeleccionadoNombre = '';
       });
       _mostrarMensaje(
         '✅ Se registraron $totalPrendas prendas en $totalClientes clientas por \$${totalDinero.toStringAsFixed(2)}.',
@@ -593,24 +603,6 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
               final prendasActivas = (snapPrendas.data?.docs ?? [])
                   .map((d) => PrendaModel.fromFirestore(d))
                   .toList();
-
-              return StreamBuilder<QuerySnapshot>(
-                stream: _db.collection('compras').snapshots(),
-                builder: (context, snapCompras) {
-                  final docsCompras = snapCompras.data?.docs ?? [];
-
-                  // Total de prendas y compras históricas por cliente
-                  final prendasHistoricas = <String, int>{};
-                  final totalHistorico = <String, double>{};
-                  for (final doc in docsCompras) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    final cId = data['clienteId']?.toString() ?? '';
-                    final cant = (data['cantidad'] is num) ? (data['cantidad'] as num).toInt() : 1;
-                    final sub = (data['total'] ?? data['subtotal'] ?? 0).toDouble();
-
-                    prendasHistoricas[cId] = (prendasHistoricas[cId] ?? 0) + cant;
-                    totalHistorico[cId] = (totalHistorico[cId] ?? 0) + sub;
-                  }
 
                   // Autoseleccionar primer cliente si no hay seleccionado
                   if (_clienteSeleccionadoId == null && docsClientes.isNotEmpty) {
@@ -809,8 +801,8 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
                                   final seleccionado = id == _clienteSeleccionadoId;
                                   final pedido = _pedidosPendientes[id] ?? {};
 
-                                  final prendasTotales = (prendasHistoricas[id] ?? 0) + _cantidadPendiente(id);
-                                  final dineroTotal = (totalHistorico[id] ?? 0) + _totalPendiente(id);
+                                  final prendasTotales = _cantidadPendiente(id);
+                                  final dineroTotal = _totalPendiente(id);
 
                                   return Material(
                                     color: Colors.white,
@@ -1153,9 +1145,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
                 },
               );
             },
-          );
-        },
-      ),
-    );
+          ),
+        );
   }
 }

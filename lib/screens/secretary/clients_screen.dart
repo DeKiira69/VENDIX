@@ -40,6 +40,19 @@ class ClientsScreen extends StatefulWidget {
 }
 
 class _ClientsScreenState extends State<ClientsScreen> {
+  static double _toDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v.replaceAll(',', '.')) ?? 0.0;
+    return 0.0;
+  }
+
+  static int _toInt(dynamic v) {
+    if (v == null) return 1;
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? 1;
+    return 1;
+  }
   final _db = FirebaseFirestore.instance;
   final _buscarController = TextEditingController();
   String _filtro = 'Todas';
@@ -110,15 +123,15 @@ class _ClientsScreenState extends State<ClientsScreen> {
                       int totalPrendas = 0;
                       double totalComprado = 0;
                       for (final c in compras) {
-                        final cant = (c['cantidad'] is num) ? (c['cantidad'] as num).toInt() : 1;
-                        final sub = (c['total'] ?? c['subtotal'] ?? 0).toDouble();
+                        final cant = _toInt(c['cantidad']);
+                        final sub = _toDouble(c['total'] ?? c['subtotal']);
                         totalPrendas += cant;
                         totalComprado += sub;
                       }
 
                       double totalPagado = 0;
                       for (final p in pagos) {
-                        totalPagado += (p['monto'] ?? 0).toDouble();
+                        totalPagado += _toDouble(p['monto']);
                       }
 
                       final saldo = totalComprado - totalPagado;
@@ -566,9 +579,9 @@ class _ClientsScreenState extends State<ClientsScreen> {
                     ...cliente.compras.map(
                       (compra) {
                         final nombrePrenda = compra['prendaNombre'] ?? compra['prenda'] ?? 'Prenda';
-                        final cant = (compra['cantidad'] is num) ? (compra['cantidad'] as num).toInt() : 1;
-                        final precioUnitario = (compra['precio'] is num) ? (compra['precio'] as num).toDouble() : 0.0;
-                        final subtotal = (compra['total'] ?? compra['subtotal'] ?? (precioUnitario * cant)).toDouble();
+                        final cant = _toInt(compra['cantidad']);
+                        final precioUnitario = _toDouble(compra['precio'] ?? compra['precioUnitario']);
+                        final subtotal = _toDouble(compra['total'] ?? compra['subtotal'] ?? (precioUnitario * cant));
 
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 9),
@@ -990,6 +1003,15 @@ class _ClientsScreenState extends State<ClientsScreen> {
                               'fecha': FieldValue.serverTimestamp(),
                             });
 
+                            final nuevoSaldo = (cliente.deuda - monto).clamp(0.0, double.infinity);
+                            try {
+                              await _db.collection('clientes').doc(cliente.id).set({
+                                'saldo': nuevoSaldo,
+                                'ultimoPago': monto,
+                                'fechaUltimoPago': FieldValue.serverTimestamp(),
+                              }, SetOptions(merge: true));
+                            } catch (_) {}
+
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
@@ -1046,8 +1068,8 @@ class _ClientsScreenState extends State<ClientsScreen> {
                 ...cliente.compras.map(
                   (compra) {
                     final nombrePrenda = compra['prendaNombre'] ?? compra['prenda'] ?? 'Prenda';
-                    final cant = (compra['cantidad'] is num) ? (compra['cantidad'] as num).toInt() : 1;
-                    final subtotal = (compra['total'] ?? compra['subtotal'] ?? 0).toDouble();
+                    final cant = _toInt(compra['cantidad']);
+                    final subtotal = _toDouble(compra['total'] ?? compra['subtotal']);
                     final ts = compra['fecha'];
                     String fechaStr = 'Reciente';
                     if (ts is Timestamp) {
@@ -1073,7 +1095,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
               else
                 ...cliente.pagos.map(
                   (pago) {
-                    final monto = (pago['monto'] ?? 0).toDouble();
+                    final monto = _toDouble(pago['monto']);
                     final ts = pago['fecha'];
                     String fechaStr = 'Reciente';
                     if (ts is Timestamp) {

@@ -11,6 +11,12 @@ class PaymentsScreen extends StatefulWidget {
 }
 
 class _PaymentsScreenState extends State<PaymentsScreen> {
+  static double _toDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v.replaceAll(',', '.')) ?? 0.0;
+    return 0.0;
+  }
   final _db = FirebaseFirestore.instance;
   final _montoController = TextEditingController();
   final _observacionController = TextEditingController();
@@ -54,6 +60,15 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
       'observacion': observacion,
       'fecha': FieldValue.serverTimestamp(),
     });
+
+    final nuevoSaldo = (deuda - monto).clamp(0.0, double.infinity);
+    try {
+      await _db.collection('clientes').doc(_clienteSeleccionadoId).set({
+        'saldo': nuevoSaldo,
+        'ultimoPago': monto,
+        'fechaUltimoPago': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {}
 
     _montoController.clear();
     _observacionController.clear();
@@ -127,22 +142,28 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
               double totalComprado = 0;
               for (final doc in snapCompras.data?.docs ?? []) {
                 final d = doc.data() as Map<String, dynamic>;
-                totalComprado += (d['total'] ?? d['subtotal'] ?? 0).toDouble();
+                totalComprado += _toDouble(d['total'] ?? d['subtotal']);
               }
 
               return StreamBuilder<QuerySnapshot>(
                 stream: _db.collection('pagos')
                     .where('clienteId', isEqualTo: _clienteSeleccionadoId)
-                    .orderBy('fecha', descending: true)
                     .snapshots(),
                 builder: (context, snapPagos) {
                   double totalPagado = 0;
                   for (final doc in snapPagos.data?.docs ?? []) {
                     final d = doc.data() as Map<String, dynamic>;
-                    totalPagado += (d['monto'] ?? 0).toDouble();
+                    totalPagado += _toDouble(d['monto']);
                   }
                   final deuda = (totalComprado - totalPagado).clamp(0.0, double.infinity);
-                  final pagos = snapPagos.data?.docs ?? [];
+                  final pagos = (snapPagos.data?.docs ?? []).toList()
+                    ..sort((a, b) {
+                      final ta = (a.data() as Map<String, dynamic>)['fecha'];
+                      final tb = (b.data() as Map<String, dynamic>)['fecha'];
+                      final da = ta is Timestamp ? ta.toDate() : DateTime(2000);
+                      final db = tb is Timestamp ? tb.toDate() : DateTime(2000);
+                      return db.compareTo(da);
+                    });
 
                   return ListView(
                     padding: const EdgeInsets.all(16),
@@ -330,7 +351,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                       else
                         ...pagos.map((doc) {
                           final d = doc.data() as Map<String, dynamic>;
-                          final monto = (d['monto'] ?? 0).toDouble();
+                          final monto = _toDouble(d['monto']);
                           final obs = (d['observacion'] ?? '').toString();
                           final ts = d['fecha'] as Timestamp?;
                           final fecha = ts?.toDate() ?? DateTime.now();
