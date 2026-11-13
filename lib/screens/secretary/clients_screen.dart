@@ -469,7 +469,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
           initialChildSize: 0.78,
           minChildSize: 0.55,
           maxChildSize: 0.95,
-          builder: (context, scrollController) {
+          builder: (_, scrollController) {
             final iniciales = cliente.nombre
                 .trim()
                 .split(RegExp(r'\s+'))
@@ -501,10 +501,10 @@ class _ClientsScreenState extends State<ClientsScreen> {
                     children: [
                       StreamBuilder<String?>(
                         stream: PerfilFotoService.fotoStream(cliente.id),
-                        builder: (context, snap) {
+                        builder: (_, snap) {
                           final foto = snap.data ?? cliente.fotoUrl;
                           return PerfilFotoService.avatarWidget(
-                            context: context,
+                            context: sheetContext,
                             fotoData: foto,
                             iniciales: iniciales.isEmpty ? 'C' : iniciales,
                             nombre: cliente.nombre,
@@ -795,7 +795,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
         initialChildSize: 0.8,
         minChildSize: 0.5,
         maxChildSize: 0.95,
-        builder: (context, scrollController) {
+        builder: (_, scrollController) {
           final compras = cliente.compras;
 
           return Container(
@@ -821,7 +821,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                 Row(
                   children: [
                     PerfilFotoService.avatarWidget(
-                      context: context,
+                      context: sheetCtx,
                       fotoData: cliente.fotoUrl,
                       iniciales: cliente.nombre.trim().isNotEmpty
                           ? cliente.nombre.trim()[0].toUpperCase()
