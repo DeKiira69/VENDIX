@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 /// Widget que renderiza y anima el isotipo y marca VENDIX con fidelidad 1:1
-/// respecto a la identidad visual oficial a 60/120 FPS nativos.
+/// respecto a la especificación vectorial SVG/HTML a 60/120 FPS nativos.
 class VendixLogo extends StatefulWidget {
-  /// Tamaño del isotipo cuadrado (por defecto 145 para Splash, 72 para cabeceras).
+  /// Tamaño del isotipo cuadrado (por defecto 145 según CSS `.logo-wrapper`).
   final double size;
 
   /// Si es true, renderiza abajo la tipografía VENDIX con degradado a juego.
@@ -21,7 +21,7 @@ class VendixLogo extends StatefulWidget {
   /// Si es true, reproduce la secuencia de entrada inicial (trazado, revelación).
   final bool animateEntrance;
 
-  /// Si es true, mantiene la flotación continua, balanceo y pulso.
+  /// Si es true, mantiene la flotación continua, balanceo de órbita y pulso de barras.
   final bool continuousLoop;
 
   /// Callback opcional disparado cuando la animación de entrada termina.
@@ -54,13 +54,24 @@ class _VendixLogoState extends State<VendixLogo> with TickerProviderStateMixin {
   late final Animation<double> _bagStrokeProgress;
   late final Animation<double> _handleStrokeProgress;
 
+  late final Animation<double> _swooshOpacity;
+  late final Animation<double> _swooshScale;
+  late final Animation<double> _swooshRotation;
+
+  late final Animation<double> _bar1Growth;
+  late final Animation<double> _bar2Growth;
+  late final Animation<double> _bar3Growth;
+
   late final Animation<double> _textOpacity;
   late final Animation<double> _textTranslateY;
 
   // Animaciones de Bucle Continuo (3.4s)
   late final Animation<double> _logoFloatY;
-  late final Animation<double> _bagSwayAngle;
-  late final Animation<double> _bagPulseScale;
+  late final Animation<double> _swooshSwayAngle;
+  late final Animation<double> _swooshSwayScale;
+  late final Animation<double> _bar1Pulse;
+  late final Animation<double> _bar2Pulse;
+  late final Animation<double> _bar3Pulse;
 
   @override
   void initState() {
@@ -97,8 +108,12 @@ class _VendixLogoState extends State<VendixLogo> with TickerProviderStateMixin {
   }
 
   void _configurarAnimacionesEntrada() {
+    // Curva cúbica principal: cubic-bezier(0.22, 1, 0.36, 1)
     const bezierEaseOut = Cubic(0.22, 1.0, 0.36, 1.0);
+    // Curva dibujo de trazo: cubic-bezier(0.33, 1, 0.68, 1)
     const bezierStroke = Cubic(0.33, 1.0, 0.68, 1.0);
+    // Curva rebote suave barras: cubic-bezier(0.34, 1.56, 0.64, 1)
+    const bezierBounce = Cubic(0.34, 1.56, 0.64, 1.0);
 
     // logoEntrance: 0s a 0.9s (0.0 -> 0.72)
     _logoOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
@@ -136,23 +151,63 @@ class _VendixLogoState extends State<VendixLogo> with TickerProviderStateMixin {
       ),
     );
 
-    // textReveal: delay 0.7s, dur 0.75s (0.56 -> 1.0)
+    // swooshReveal: delay 0.5s, dur 0.75s (0.40 -> 1.0)
+    _swooshOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _entranceController,
+        curve: const Interval(0.40, 1.0, curve: bezierEaseOut),
+      ),
+    );
+    _swooshScale = Tween<double>(begin: 0.9, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _entranceController,
+        curve: const Interval(0.40, 1.0, curve: bezierEaseOut),
+      ),
+    );
+    _swooshRotation = Tween<double>(begin: -6.0 * (math.pi / 180.0), end: 0.0).animate(
+      CurvedAnimation(
+        parent: _entranceController,
+        curve: const Interval(0.40, 1.0, curve: bezierEaseOut),
+      ),
+    );
+
+    // Barras: barGrow 0.4s (delays 0.7s, 0.8s, 0.9s -> 0.56, 0.64, 0.72 hasta 0.88, 0.96, 1.0)
+    _bar1Growth = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _entranceController,
+        curve: const Interval(0.56, 0.88, curve: bezierBounce),
+      ),
+    );
+    _bar2Growth = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _entranceController,
+        curve: const Interval(0.64, 0.96, curve: bezierBounce),
+      ),
+    );
+    _bar3Growth = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _entranceController,
+        curve: const Interval(0.72, 1.0, curve: bezierBounce),
+      ),
+    );
+
+    // textReveal: delay 0.8s, dur 0.75s (0.64 -> 1.0)
     _textOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _entranceController,
-        curve: const Interval(0.56, 1.0, curve: bezierEaseOut),
+        curve: const Interval(0.64, 1.0, curve: bezierEaseOut),
       ),
     );
     _textTranslateY = Tween<double>(begin: 10.0, end: 0.0).animate(
       CurvedAnimation(
         parent: _entranceController,
-        curve: const Interval(0.56, 1.0, curve: bezierEaseOut),
+        curve: const Interval(0.64, 1.0, curve: bezierEaseOut),
       ),
     );
   }
 
   void _configurarAnimacionesBucle() {
-    // logoFloat: flotación vertical senoidal 0s -> -7px -> 0s
+    // logoFloat: 0s -> -7px -> 0s
     _logoFloatY = TweenSequence<double>([
       TweenSequenceItem(
         tween: Tween<double>(begin: 0.0, end: -7.0).chain(CurveTween(curve: Curves.easeInOut)),
@@ -164,36 +219,79 @@ class _VendixLogoState extends State<VendixLogo> with TickerProviderStateMixin {
       ),
     ]).animate(_loopController);
 
-    // bagSway: sutil balanceo de rotación (-2° a 2°)
-    _bagSwayAngle = TweenSequence<double>([
+    // swooshSway: 0deg, scale 1.0 -> -2.5deg, scale 1.015 -> 0deg, scale 1.0
+    _swooshSwayAngle = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 0.0, end: -2.0 * (math.pi / 180.0))
-            .chain(CurveTween(curve: Curves.easeInOut)),
-        weight: 25.0,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(begin: -2.0 * (math.pi / 180.0), end: 2.0 * (math.pi / 180.0))
+        tween: Tween<double>(begin: 0.0, end: -2.5 * (math.pi / 180.0))
             .chain(CurveTween(curve: Curves.easeInOut)),
         weight: 50.0,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 2.0 * (math.pi / 180.0), end: 0.0)
+        tween: Tween<double>(begin: -2.5 * (math.pi / 180.0), end: 0.0)
             .chain(CurveTween(curve: Curves.easeInOut)),
-        weight: 25.0,
+        weight: 50.0,
       ),
     ]).animate(_loopController);
 
-    // bagPulse: sutil respiración orgánica del icono central
-    _bagPulseScale = TweenSequence<double>([
+    _swooshSwayScale = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.0, end: 1.04).chain(CurveTween(curve: Curves.easeInOut)),
+        tween: Tween<double>(begin: 1.0, end: 1.015).chain(CurveTween(curve: Curves.easeInOut)),
         weight: 50.0,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.04, end: 1.0).chain(CurveTween(curve: Curves.easeInOut)),
+        tween: Tween<double>(begin: 1.015, end: 1.0).chain(CurveTween(curve: Curves.easeInOut)),
         weight: 50.0,
       ),
     ]).animate(_loopController);
+
+    // barPulse con desfase orgánico senoidal continuo: scaleY 1.0 -> 0.72 -> 1.0
+    _bar1Pulse = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.0, end: 0.72).chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 50.0,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.72, end: 1.0).chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 50.0,
+      ),
+    ]).animate(
+      CurvedAnimation(
+        parent: _loopController,
+        curve: const Interval(0.0, 0.75, curve: Curves.linear),
+      ),
+    );
+
+    _bar2Pulse = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.0, end: 0.72).chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 50.0,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.72, end: 1.0).chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 50.0,
+      ),
+    ]).animate(
+      CurvedAnimation(
+        parent: _loopController,
+        curve: const Interval(0.12, 0.87, curve: Curves.linear),
+      ),
+    );
+
+    _bar3Pulse = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.0, end: 0.72).chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 50.0,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.72, end: 1.0).chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 50.0,
+      ),
+    ]).animate(
+      CurvedAnimation(
+        parent: _loopController,
+        curve: const Interval(0.24, 0.99, curve: Curves.linear),
+      ),
+    );
   }
 
   @override
@@ -210,17 +308,40 @@ class _VendixLogoState extends State<VendixLogo> with TickerProviderStateMixin {
       builder: (context, _) {
         final entranceDone = _entranceController.value >= 1.0;
 
+        // Cálculos acumulados de transformación
         final opacity = widget.animateEntrance ? _logoOpacity.value : 1.0;
         final scale = widget.animateEntrance ? _logoScale.value : 1.0;
         final floatY = (widget.continuousLoop && entranceDone) ? _logoFloatY.value : 0.0;
         final entranceY = widget.animateEntrance ? _logoTranslateY.value : 0.0;
         final totalTranslateY = entranceY + floatY;
 
+        // Trazado progresivo
         final bagProg = widget.animateEntrance ? _bagStrokeProgress.value : 1.0;
         final handleProg = widget.animateEntrance ? _handleStrokeProgress.value : 1.0;
 
-        final swayRot = (widget.continuousLoop && entranceDone) ? _bagSwayAngle.value : 0.0;
-        final pulseScale = (widget.continuousLoop && entranceDone) ? _bagPulseScale.value : 1.0;
+        // Órbita
+        final swooshOp = widget.animateEntrance ? _swooshOpacity.value : 1.0;
+        final baseSwooshScale = widget.animateEntrance ? _swooshScale.value : 1.0;
+        final baseSwooshRot = widget.animateEntrance ? _swooshRotation.value : 0.0;
+
+        final swayScale = (widget.continuousLoop && entranceDone) ? _swooshSwayScale.value : 1.0;
+        final swayRot = (widget.continuousLoop && entranceDone) ? _swooshSwayAngle.value : 0.0;
+
+        final totalSwooshScale = baseSwooshScale * swayScale;
+        final totalSwooshRot = baseSwooshRot + swayRot;
+
+        // Barras
+        final b1Grow = widget.animateEntrance ? _bar1Growth.value : 1.0;
+        final b2Grow = widget.animateEntrance ? _bar2Growth.value : 1.0;
+        final b3Grow = widget.animateEntrance ? _bar3Growth.value : 1.0;
+
+        final b1Pulse = (widget.continuousLoop && entranceDone) ? _bar1Pulse.value : 1.0;
+        final b2Pulse = (widget.continuousLoop && entranceDone) ? _bar2Pulse.value : 1.0;
+        final b3Pulse = (widget.continuousLoop && entranceDone) ? _bar3Pulse.value : 1.0;
+
+        final bar1HeightFactor = b1Grow * b1Pulse;
+        final bar2HeightFactor = b2Grow * b2Pulse;
+        final bar3HeightFactor = b3Grow * b3Pulse;
 
         return Column(
           mainAxisSize: MainAxisSize.min,
@@ -233,15 +354,22 @@ class _VendixLogoState extends State<VendixLogo> with TickerProviderStateMixin {
                 offset: Offset(0, totalTranslateY),
                 child: Transform.scale(
                   scale: scale,
-                  child: SizedBox(
-                    width: widget.size,
-                    height: widget.size,
-                    child: CustomPaint(
-                      painter: VendixLogoPainter(
-                        bagProgress: bagProg,
-                        handleProgress: handleProg,
-                        iconRotation: swayRot,
-                        iconScale: pulseScale,
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: SizedBox(
+                      width: widget.size,
+                      height: widget.size,
+                      child: CustomPaint(
+                        painter: VendixLogoPainter(
+                          bagProgress: bagProg,
+                          handleProgress: handleProg,
+                          swooshOpacity: swooshOp,
+                          swooshScale: totalSwooshScale,
+                          swooshRotation: totalSwooshRot,
+                          bar1ScaleY: bar1HeightFactor,
+                          bar2ScaleY: bar2HeightFactor,
+                          bar3ScaleY: bar3HeightFactor,
+                        ),
                       ),
                     ),
                   ),
@@ -263,9 +391,9 @@ class _VendixLogoState extends State<VendixLogo> with TickerProviderStateMixin {
                     shaderCallback: (bounds) {
                       return const LinearGradient(
                         colors: [
-                          Color(0xFF6C4AB6),
+                          Color(0xFF6938EF),
                           Color(0xFF9E54E8),
-                          Color(0xFFE9A6C8),
+                          Color(0xFFEC69B4),
                         ],
                         stops: [0.0, 0.55, 1.0],
                         begin: Alignment.topLeft,
@@ -296,29 +424,38 @@ class _VendixLogoState extends State<VendixLogo> with TickerProviderStateMixin {
 class VendixLogoPainter extends CustomPainter {
   final double bagProgress;
   final double handleProgress;
-  final double iconRotation;
-  final double iconScale;
+  final double swooshOpacity;
+  final double swooshScale;
+  final double swooshRotation;
+  final double bar1ScaleY;
+  final double bar2ScaleY;
+  final double bar3ScaleY;
 
   // Cache estática de paths para evitar recreación de geometría cada frame
   static Path? _cachedHandlePath;
   static Path? _cachedBagPath;
+  static Path? _cachedSwooshPath;
 
   VendixLogoPainter({
     required this.bagProgress,
     required this.handleProgress,
-    this.iconRotation = 0.0,
-    this.iconScale = 1.0,
+    required this.swooshOpacity,
+    required this.swooshScale,
+    required this.swooshRotation,
+    required this.bar1ScaleY,
+    required this.bar2ScaleY,
+    required this.bar3ScaleY,
   });
 
   static Path _getHandlePath() {
     if (_cachedHandlePath != null) return _cachedHandlePath!;
     final path = Path();
-    // Asa centrada en 200x200 (x: 82 a 118, y: 68 a 88, radio superior: 18)
-    path.moveTo(85, 88);
-    path.lineTo(85, 82);
-    path.cubicTo(85, 72.5, 91.5, 66, 100, 66);
-    path.cubicTo(108.5, 66, 115, 72.5, 115, 82);
-    path.lineTo(115, 88);
+    // M80 74V62C80 50.9543 88.9543 42 100 42C111.046 42 120 50.9543 120 62V74
+    path.moveTo(80, 74);
+    path.lineTo(80, 62);
+    path.cubicTo(80, 50.9543, 88.9543, 42, 100, 42);
+    path.cubicTo(111.046, 42, 120, 50.9543, 120, 62);
+    path.lineTo(120, 74);
     _cachedHandlePath = path;
     return path;
   }
@@ -326,14 +463,36 @@ class VendixLogoPainter extends CustomPainter {
   static Path _getBagPath() {
     if (_cachedBagPath != null) return _cachedBagPath!;
     final path = Path();
-    // Cuerpo de la bolsa rectangular redondeada centrada en 200x200:
-    // Left: 68, Right: 132, Top: 88, Bottom: 144. Radius: 8
-    final rect = RRect.fromRectAndRadius(
-      const Rect.fromLTWH(68, 88, 64, 56),
-      const Radius.circular(9),
-    );
-    path.addRRect(rect);
+    // M66 74H134C138.971 74 143.138 77.775 143.621 82.722L149.121 139.022C149.687 144.819 145.134 149.8 139.309 149.8H60.691C54.866 149.8 50.313 144.819 50.879 139.022L56.379 82.722C56.862 77.775 61.029 74 66 74Z
+    path.moveTo(66, 74);
+    path.lineTo(134, 74);
+    path.cubicTo(138.971, 74, 143.138, 77.775, 143.621, 82.722);
+    path.lineTo(149.121, 139.022);
+    path.cubicTo(149.687, 144.819, 145.134, 149.8, 139.309, 149.8);
+    path.lineTo(60.691, 149.8);
+    path.cubicTo(54.866, 149.8, 50.313, 144.819, 50.879, 139.022);
+    path.lineTo(56.379, 82.722);
+    path.cubicTo(56.862, 77.775, 61.029, 74, 66, 74);
+    path.close();
     _cachedBagPath = path;
+    return path;
+  }
+
+  static Path _getSwooshPath() {
+    if (_cachedSwooshPath != null) return _cachedSwooshPath!;
+    final path = Path();
+    // M52 94C35 103 29 116 40 124C54 134 102 126 142 108C166 97 174 85 162 78C156 75 148 74 140 75C148 76 154 78 156 82C160 89 142 101 112 112C76 125 46 126 42 118C39 112 44 103 54 96L52 94Z
+    path.moveTo(52, 94);
+    path.cubicTo(35, 103, 29, 116, 40, 124);
+    path.cubicTo(54, 134, 102, 126, 142, 108);
+    path.cubicTo(166, 97, 174, 85, 162, 78);
+    path.cubicTo(156, 75, 148, 74, 140, 75);
+    path.cubicTo(148, 76, 154, 78, 156, 82);
+    path.cubicTo(160, 89, 142, 101, 112, 112);
+    path.cubicTo(76, 125, 46, 126, 42, 118);
+    path.cubicTo(39, 112, 44, 103, 54, 96);
+    path.close();
+    _cachedSwooshPath = path;
     return path;
   }
 
@@ -344,46 +503,40 @@ class VendixLogoPainter extends CustomPainter {
     canvas.scale(scale, scale);
 
     _drawBackgroundSquircle(canvas);
-
-    // Animación de rotación y pulso del icono de la bolsa sobre su centro (100, 105)
-    canvas.save();
-    canvas.translate(100, 105);
-    canvas.rotate(iconRotation);
-    canvas.scale(iconScale, iconScale);
-    canvas.translate(-100, -105);
-
     _drawHandle(canvas);
     _drawBag(canvas);
+    _drawBars(canvas);
+    _drawSwoosh(canvas);
 
-    canvas.restore();
     canvas.restore();
   }
 
   void _drawBackgroundSquircle(Canvas canvas) {
     final rect = Rect.fromLTWH(20, 20, 160, 160);
-    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(52));
+    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(44));
 
-    // Sombra suave fiel al diseño [0, 12, blur: 18, color: #6C4AB6 28%]
+    // Sombra suave fiel a feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#7C3AED" flood-opacity="0.18"
     final shadowPaint = Paint()
-      ..color = const Color(0xFF6C4AB6).withValues(alpha: 0.28)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
+      ..color = const Color(0xFF7C3AED).withValues(alpha: 0.18)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
 
     canvas.save();
-    canvas.translate(0, 10);
+    canvas.translate(0, 12);
     canvas.drawRRect(rrect, shadowPaint);
     canvas.restore();
 
-    // Degradado oficial: violeta (#6C4AB6) -> rosa (#E9A6C8) en ángulo de 135°
+    // Degradado bgGrad: x1=25 y1=20 x2=175 y2=180
+    // #6938EF -> #9E54E8 (55%) -> #F285C1 (100%)
     final bgPaint = Paint()
       ..shader = ui.Gradient.linear(
         const Offset(25, 20),
         const Offset(175, 180),
         const [
-          Color(0xFF6C4AB6),
-          Color(0xFF8B64C8),
-          Color(0xFFE9A6C8),
+          Color(0xFF6938EF),
+          Color(0xFF9E54E8),
+          Color(0xFFF285C1),
         ],
-        const [0.0, 0.45, 1.0],
+        const [0.0, 0.55, 1.0],
       );
 
     canvas.drawRRect(rrect, bgPaint);
@@ -406,7 +559,7 @@ class VendixLogoPainter extends CustomPainter {
 
     final paint = Paint()
       ..color = Colors.white
-      ..strokeWidth = 6.0
+      ..strokeWidth = 7.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
@@ -430,18 +583,96 @@ class VendixLogoPainter extends CustomPainter {
 
     final paint = Paint()
       ..color = Colors.white
-      ..strokeWidth = 6.0
+      ..strokeWidth = 7.5
       ..style = PaintingStyle.stroke
       ..strokeJoin = StrokeJoin.round;
 
     canvas.drawPath(path, paint);
   }
 
+  void _drawBars(Canvas canvas) {
+    final barPaint = Paint()..color = Colors.white;
+
+    // Bar 1: x:108, y:128, w:5.5, h:9, rx:2.75. Base y = 137
+    if (bar1ScaleY > 0.0) {
+      final h = 9.0 * bar1ScaleY;
+      final y = 137.0 - h;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(108, y, 5.5, h),
+          const Radius.circular(2.75),
+        ),
+        barPaint,
+      );
+    }
+
+    // Bar 2: x:118, y:121, w:5.5, h:16, rx:2.75. Base y = 137
+    if (bar2ScaleY > 0.0) {
+      final h = 16.0 * bar2ScaleY;
+      final y = 137.0 - h;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(118, y, 5.5, h),
+          const Radius.circular(2.75),
+        ),
+        barPaint,
+      );
+    }
+
+    // Bar 3: x:128, y:114, w:5.5, h:23, rx:2.75. Base y = 137
+    if (bar3ScaleY > 0.0) {
+      final h = 23.0 * bar3ScaleY;
+      final y = 137.0 - h;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(128, y, 5.5, h),
+          const Radius.circular(2.75),
+        ),
+        barPaint,
+      );
+    }
+  }
+
+  void _drawSwoosh(Canvas canvas) {
+    if (swooshOpacity <= 0.0) return;
+
+    final path = _getSwooshPath();
+
+    canvas.save();
+    // transform-origin: 100px 105px
+    canvas.translate(100, 105);
+    canvas.rotate(swooshRotation);
+    canvas.scale(swooshScale, swooshScale);
+    canvas.translate(-100, -105);
+
+    // swooshGrad: x1=30 y1=115 x2=170 y2=90
+    // #FFFFFF (0.85) -> #FFFFFF (1.0) -> #F5D0FE (0.90)
+    final swooshPaint = Paint()
+      ..color = Colors.white.withValues(alpha: swooshOpacity.clamp(0.0, 1.0))
+      ..shader = ui.Gradient.linear(
+        const Offset(30, 115),
+        const Offset(170, 90),
+        [
+          const Color(0xFFFFFFFF).withValues(alpha: 0.85 * swooshOpacity),
+          const Color(0xFFFFFFFF).withValues(alpha: 1.0 * swooshOpacity),
+          const Color(0xFFF5D0FE).withValues(alpha: 0.90 * swooshOpacity),
+        ],
+        const [0.0, 0.5, 1.0],
+      );
+
+    canvas.drawPath(path, swooshPaint);
+    canvas.restore();
+  }
+
   @override
   bool shouldRepaint(covariant VendixLogoPainter oldDelegate) {
     return oldDelegate.bagProgress != bagProgress ||
         oldDelegate.handleProgress != handleProgress ||
-        oldDelegate.iconRotation != iconRotation ||
-        oldDelegate.iconScale != iconScale;
+        oldDelegate.swooshOpacity != swooshOpacity ||
+        oldDelegate.swooshScale != swooshScale ||
+        oldDelegate.swooshRotation != swooshRotation ||
+        oldDelegate.bar1ScaleY != bar1ScaleY ||
+        oldDelegate.bar2ScaleY != bar2ScaleY ||
+        oldDelegate.bar3ScaleY != bar3ScaleY;
   }
 }

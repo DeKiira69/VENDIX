@@ -9,6 +9,7 @@ import '../admin/admin_home_screen.dart';
 import '../../models/administrador_model.dart';
 import '../../services/client_service.dart';
 import '../../services/google_auth_service.dart';
+import '../../widgets/vendix_logo.dart';
 import '../client/enter_code_screen.dart';
 import 'register_client_screen.dart';
 import 'register_entrepreneur_screen.dart';
@@ -32,7 +33,6 @@ class _LoginScreenState extends State<LoginScreen> {
   DateTime? _ultimoToqueAtras;
 
   static const Color violeta = Color(0xFF6C4AB6);
-  static const Color rosa = Color(0xFFE9A6C8);
   static const Color texto = Color(0xFF241B35);
   static const Color textoSecundario = Color(0xFF81798D);
 
@@ -765,30 +765,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 12),
-                    // Logo y cabecera
+                    // Logo y cabecera animada con Hero
                     Center(
-                      child: Container(
-                        width: 72,
-                        height: 72,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [violeta, rosa],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: [
-                            BoxShadow(
-                              color: violeta.withValues(alpha: 0.3),
-                              blurRadius: 16,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.shopping_bag_outlined,
-                          color: Colors.white,
-                          size: 36,
+                      child: Hero(
+                        tag: 'vendix_logo_hero',
+                        child: VendixLogo(
+                          size: 72,
+                          showText: false,
+                          animateEntrance: false,
+                          continuousLoop: true,
                         ),
                       ),
                     ),

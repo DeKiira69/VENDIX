@@ -64,12 +64,12 @@ class _SplashScreenState extends State<SplashScreen> {
 
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          transitionDuration: const Duration(milliseconds: 550),
+          transitionDuration: const Duration(milliseconds: 700),
           pageBuilder: (context, animation, secondaryAnimation) => _siguientePantalla!,
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             final curvedAnimation = CurvedAnimation(
               parent: animation,
-              curve: Curves.easeInOutCubic,
+              curve: Curves.fastOutSlowIn,
             );
             return FadeTransition(
               opacity: curvedAnimation,
@@ -185,14 +185,17 @@ class _SplashScreenState extends State<SplashScreen> {
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
-          child: VendixLogo(
-            size: 145,
-            showText: true,
-            fontSize: 34,
-            spacing: 28,
-            animateEntrance: true,
-            continuousLoop: true,
-            onEntranceEnd: _onAnimacionEntradaTerminada,
+          child: Hero(
+            tag: 'vendix_logo_hero',
+            child: VendixLogo(
+              size: 145,
+              showText: true,
+              fontSize: 34,
+              spacing: 28,
+              animateEntrance: true,
+              continuousLoop: true,
+              onEntranceEnd: _onAnimacionEntradaTerminada,
+            ),
           ),
         ),
       ),
