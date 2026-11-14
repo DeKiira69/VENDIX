@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -18,6 +20,40 @@ class SecretaryShell extends StatefulWidget {
 class _SecretaryShellState extends State<SecretaryShell> {
   int _indiceActual = 0;
   DateTime? _ultimoToqueAtras;
+  String? _adminId;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolverAdminId();
+  }
+
+  Future<void> _resolverAdminId() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      final db = FirebaseFirestore.instance;
+      final userDoc = await db.collection('usuarios').doc(uid).get();
+      final data = userDoc.data();
+      final rol = data?['rol']?.toString().toLowerCase();
+
+      String? adminId;
+      if (rol == 'administrador' || rol == 'admin') {
+        adminId = uid;
+      } else {
+        adminId = data?['adminId']?.toString();
+        if (adminId == null || adminId.isEmpty) {
+          final secDoc = await db.collection('secretarios').doc(uid).get();
+          adminId = secDoc.data()?['adminId']?.toString();
+        }
+      }
+
+      if (mounted && adminId != null && adminId.isNotEmpty) {
+        setState(() => _adminId = adminId);
+      }
+    } catch (_) {}
+  }
 
   void cambiarPantalla(int indice) {
     if (indice < 0 || indice > 4) return;
@@ -31,14 +67,15 @@ class _SecretaryShellState extends State<SecretaryShell> {
   Widget build(BuildContext context) {
     final List<Widget> pantallas = [
       HomeScreen(
+        adminId: _adminId,
         alAbrirVentas: () => cambiarPantalla(1),
         alAbrirClientes: () => cambiarPantalla(2),
         alAbrirEstadisticas: () => cambiarPantalla(3),
         alAbrirMas: () => cambiarPantalla(4),
       ),
-      QuickSalesScreen(onVolver: () => cambiarPantalla(0)),
-      ClientsScreen(onVolver: () => cambiarPantalla(0)),
-      StatisticsScreen(onVolver: () => cambiarPantalla(0)),
+      QuickSalesScreen(adminId: _adminId, onVolver: () => cambiarPantalla(0)),
+      ClientsScreen(adminId: _adminId, onVolver: () => cambiarPantalla(0)),
+      StatisticsScreen(adminId: _adminId, onVolver: () => cambiarPantalla(0)),
       const MoreScreen(),
     ];
 

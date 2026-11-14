@@ -5,8 +5,9 @@ import '../../theme/app_theme.dart';
 
 class StatisticsScreen extends StatefulWidget {
   final VoidCallback? onVolver;
+  final String? adminId;
 
-  const StatisticsScreen({super.key, this.onVolver});
+  const StatisticsScreen({super.key, this.onVolver, this.adminId});
 
   @override
   State<StatisticsScreen> createState() => _StatisticsScreenState();
@@ -134,13 +135,37 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             return StreamBuilder<QuerySnapshot>(
               stream: db.collection('pagos').snapshots(),
               builder: (context, snapPagos) {
-                final clientes = snapClientes.data?.docs ?? [];
-                final todasCompras = snapCompras.data?.docs ?? [];
-                final todosPagos = snapPagos.data?.docs ?? [];
+                // Filtrar clientes por adminId
+                final clientes = (snapClientes.data?.docs ?? []).where((doc) {
+                  if (widget.adminId == null || widget.adminId!.isEmpty) return true;
+                  final cAdmin = (doc.data() as Map<String, dynamic>)['adminId']?.toString() ?? '';
+                  return cAdmin == widget.adminId || cAdmin.isEmpty;
+                }).toList();
+                final clienteIds = clientes.map((d) => d.id).toSet();
+
+                final todasComprasDocs = (snapCompras.data?.docs ?? []).where((doc) {
+                  final d = doc.data() as Map<String, dynamic>;
+                  if (widget.adminId == null || widget.adminId!.isEmpty) return true;
+                  final cAdmin = d['adminId']?.toString() ?? '';
+                  if (cAdmin == widget.adminId) return true;
+                  if (cAdmin.isEmpty) {
+                    final cId = d['clienteId']?.toString() ?? '';
+                    return clienteIds.contains(cId);
+                  }
+                  return false;
+                }).toList();
+
+                final todosPagosDocs = (snapPagos.data?.docs ?? []).where((doc) {
+                  if (widget.adminId == null || widget.adminId!.isEmpty) return true;
+                  final d = doc.data() as Map<String, dynamic>;
+                  final cId = d['clienteId']?.toString() ?? '';
+                  if (cId.isNotEmpty && !clienteIds.contains(cId)) return false;
+                  return true;
+                }).toList();
 
                 // Filtrar por fecha si está seleccionada
-                final compras = _filtrarDocs(todasCompras);
-                final pagos = _filtrarDocs(todosPagos);
+                final compras = _filtrarDocs(todasComprasDocs);
+                final pagos = _filtrarDocs(todosPagosDocs);
 
                 double totalVentas = 0;
                 double totalCobrado = 0;

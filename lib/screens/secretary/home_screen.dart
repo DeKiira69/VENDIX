@@ -6,6 +6,7 @@ import '../../services/perfil_foto_service.dart';
 import '../../theme/app_theme.dart';
 
 class HomeScreen extends StatelessWidget {
+  final String? adminId;
   final VoidCallback alAbrirVentas;
   final VoidCallback alAbrirClientes;
   final VoidCallback alAbrirEstadisticas;
@@ -13,6 +14,7 @@ class HomeScreen extends StatelessWidget {
 
   const HomeScreen({
     super.key,
+    this.adminId,
     required this.alAbrirVentas,
     required this.alAbrirClientes,
     required this.alAbrirEstadisticas,
@@ -85,13 +87,30 @@ class HomeScreen extends StatelessWidget {
         child: StreamBuilder<QuerySnapshot>(
           stream: db.collection('clientes').snapshots(),
           builder: (context, snapClientes) {
-            final clientes = snapClientes.data?.docs ?? [];
+            // Filtrar clientes por adminId del negocio
+            final clientes = (snapClientes.data?.docs ?? []).where((doc) {
+              if (adminId == null || adminId!.isEmpty) return true;
+              final cAdmin = (doc.data() as Map<String, dynamic>)['adminId']?.toString() ?? '';
+              return cAdmin == adminId || cAdmin.isEmpty;
+            }).toList();
             final totalClientes = clientes.length;
+            final clienteIds = clientes.map((d) => d.id).toSet();
 
             return StreamBuilder<QuerySnapshot>(
               stream: db.collection('compras').snapshots(),
               builder: (context, snapCompras) {
-                final compras = snapCompras.data?.docs ?? [];
+                // Filtrar compras por adminId o que pertenezcan a clientes del negocio
+                final compras = (snapCompras.data?.docs ?? []).where((doc) {
+                  final d = doc.data() as Map<String, dynamic>;
+                  if (adminId == null || adminId!.isEmpty) return true;
+                  final cAdmin = d['adminId']?.toString() ?? '';
+                  if (cAdmin == adminId) return true;
+                  if (cAdmin.isEmpty) {
+                    final cId = d['clienteId']?.toString() ?? '';
+                    return clienteIds.contains(cId);
+                  }
+                  return false;
+                }).toList();
 
                 double totalVentas = 0;
                 double dineroHoy = 0;
@@ -99,8 +118,8 @@ class HomeScreen extends StatelessWidget {
 
                 for (final doc in compras) {
                   final d = doc.data() as Map<String, dynamic>;
-                  final monto = (d['total'] ?? d['subtotal'] ?? 0).toDouble();
-                  final prendas = (d['cantidad'] ?? 0) as int;
+                  final monto = ((d['total'] ?? d['subtotal'] ?? 0) as num).toDouble();
+                  final prendas = ((d['cantidad'] ?? 0) as num).toInt();
                   totalVentas += monto;
                   prendasVendidas += prendas;
 
@@ -119,7 +138,12 @@ class HomeScreen extends StatelessWidget {
                     double totalCobrado = 0;
                     for (final doc in snapPagos.data?.docs ?? []) {
                       final d = doc.data() as Map<String, dynamic>;
-                      totalCobrado += (d['monto'] ?? 0).toDouble();
+                      // Filtrar pagos por clientes del negocio
+                      if (adminId != null && adminId!.isNotEmpty) {
+                        final cId = d['clienteId']?.toString() ?? '';
+                        if (cId.isNotEmpty && !clienteIds.contains(cId)) continue;
+                      }
+                      totalCobrado += ((d['monto'] ?? 0) as num).toDouble();
                     }
                     final totalPendiente = (totalVentas - totalCobrado).clamp(0.0, double.infinity);
 
