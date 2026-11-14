@@ -1,0 +1,49 @@
+<svg viewBox="0 0 200 200" width="1024" height="1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad" x1="25" y1="20" x2="175" y2="180" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6938EF" />
+      <stop offset="55%" stop-color="#9E54E8" />
+      <stop offset="100%" stop-color="#F285C1" />
+    </linearGradient>
+
+    <linearGradient id="swooshGrad" x1="30" y1="115" x2="170" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.85" />
+      <stop offset="50%" stop-color="#FFFFFF" stop-opacity="1" />
+      <stop offset="100%" stop-color="#F5D0FE" stop-opacity="0.9" />
+    </linearGradient>
+
+    <filter id="softShadow" x="-15%" y="-10%" width="130%" height="135%">
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#7C3AED" flood-opacity="0.18" />
+    </filter>
+  </defs>
+
+  <!-- Cuadrado redondeado -->
+  <rect x="20" y="20" width="160" height="160" rx="44" fill="url(#bgGrad)" filter="url(#softShadow)" />
+
+  <!-- Asa de la bolsa -->
+  <path
+    d="M80 74V62C80 50.9543 88.9543 42 100 42C111.046 42 120 50.9543 120 62V74"
+    stroke="#FFFFFF"
+    stroke-width="7.5"
+    stroke-linecap="round"
+  />
+
+  <!-- Cuerpo de la bolsa -->
+  <path
+    d="M66 74H134C138.971 74 143.138 77.775 143.621 82.722L149.121 139.022C149.687 144.819 145.134 149.8 139.309 149.8H60.691C54.866 149.8 50.313 144.819 50.879 139.022L56.379 82.722C56.862 77.775 61.029 74 66 74Z"
+    stroke="#FFFFFF"
+    stroke-width="7.5"
+    stroke-linejoin="round"
+  />
+
+  <!-- Barras internas -->
+  <rect x="108" y="128" width="5.5" height="9" rx="2.75" fill="#FFFFFF" />
+  <rect x="118" y="121" width="5.5" height="16" rx="2.75" fill="#FFFFFF" />
+  <rect x="128" y="114" width="5.5" height="23" rx="2.75" fill="#FFFFFF" />
+
+  <!-- Órbita envolvente -->
+  <path
+    d="M52 94C35 103 29 116 40 124C54 134 102 126 142 108C166 97 174 85 162 78C156 75 148 74 140 75C148 76 154 78 156 82C160 89 142 101 112 112C76 125 46 126 42 118C39 112 44 103 54 96L52 94Z"
+    fill="url(#swooshGrad)"
+  />
+</svg>
