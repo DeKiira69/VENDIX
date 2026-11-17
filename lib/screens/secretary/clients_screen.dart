@@ -1,9 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/prenda_model.dart';
-import '../../services/perfil_foto_service.dart';
 import '../../theme/app_theme.dart';
 
 class _ClienteData {
@@ -11,8 +9,6 @@ class _ClienteData {
   final String nombre;
   final String telefono;
   final String direccion;
-  final String? fotoUrl;
-  final String? adminId;
   final int prendas;
   final double totalComprado;
   final double totalPagado;
@@ -25,8 +21,6 @@ class _ClienteData {
     required this.nombre,
     required this.telefono,
     required this.direccion,
-    this.fotoUrl,
-    this.adminId,
     required this.prendas,
     required this.totalComprado,
     required this.totalPagado,
@@ -38,9 +32,8 @@ class _ClienteData {
 
 class ClientsScreen extends StatefulWidget {
   final VoidCallback? onVolver;
-  final String? adminId;
 
-  const ClientsScreen({super.key, this.onVolver, this.adminId});
+  const ClientsScreen({super.key, this.onVolver});
 
   @override
   State<ClientsScreen> createState() => _ClientsScreenState();
@@ -63,41 +56,6 @@ class _ClientsScreenState extends State<ClientsScreen> {
   final _db = FirebaseFirestore.instance;
   final _buscarController = TextEditingController();
   String _filtro = 'Todas';
-  String? _adminId;
-
-  @override
-  void initState() {
-    super.initState();
-    _resolverAdminId();
-  }
-
-  Future<void> _resolverAdminId() async {
-    if (widget.adminId != null && widget.adminId!.isNotEmpty) {
-      if (mounted) setState(() => _adminId = widget.adminId);
-      return;
-    }
-
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
-    try {
-      final userDoc = await _db.collection('usuarios').doc(uid).get();
-      final data = userDoc.data();
-      final rol = data?['rol']?.toString().toLowerCase();
-
-      if (rol == 'administrador' || rol == 'admin') {
-        _adminId = uid;
-      } else {
-        _adminId = data?['adminId']?.toString();
-        if (_adminId == null || _adminId!.isEmpty) {
-          final secDoc = await _db.collection('secretarios').doc(uid).get();
-          _adminId = secDoc.data()?['adminId']?.toString();
-        }
-      }
-    } catch (_) {}
-
-    if (mounted) setState(() {});
-  }
 
   @override
   void dispose() {
@@ -151,63 +109,47 @@ class _ClientsScreenState extends State<ClientsScreen> {
                       }
                     }
 
-                    // Mapear a _ClienteData con segregación de negocio por adminId
-                    final listaClientes = docsClientes
-                        .map((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final id = doc.id;
-                          final cAdminId = data['adminId']?.toString() ?? '';
+                    // Mapear a _ClienteData
+                    final listaClientes = docsClientes.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final id = doc.id;
+                      final nombre = data['nombre']?.toString() ?? 'Sin nombre';
+                      final telefono = data['telefono']?.toString() ?? '';
+                      final direccion = data['direccion']?.toString() ?? '';
 
-                          // Segregación: solo mostrar clientas que pertenecen a este negocio/admin
-                          final pertenece = _adminId == null ||
-                              _adminId!.isEmpty ||
-                              cAdminId == _adminId ||
-                              cAdminId.isEmpty;
+                      final compras = mapCompras[id] ?? [];
+                      final pagos = mapPagos[id] ?? [];
 
-                          if (!pertenece) return null;
+                      int totalPrendas = 0;
+                      double totalComprado = 0;
+                      for (final c in compras) {
+                        final cant = _toInt(c['cantidad']);
+                        final sub = _toDouble(c['total'] ?? c['subtotal']);
+                        totalPrendas += cant;
+                        totalComprado += sub;
+                      }
 
-                          final nombre = data['nombre']?.toString() ?? 'Sin nombre';
-                          final telefono = data['telefono']?.toString() ?? '';
-                          final direccion = data['direccion']?.toString() ?? '';
-                          final fotoUrl = (data['fotoUrl'] ?? data['fotoBase64'])?.toString();
+                      double totalPagado = 0;
+                      for (final p in pagos) {
+                        totalPagado += _toDouble(p['monto']);
+                      }
 
-                          final compras = mapCompras[id] ?? [];
-                          final pagos = mapPagos[id] ?? [];
+                      final saldo = totalComprado - totalPagado;
+                      final deuda = saldo > 0.001 ? saldo : 0.0;
 
-                          int totalPrendas = 0;
-                          double totalComprado = 0;
-                          for (final c in compras) {
-                            final cant = _toInt(c['cantidad']);
-                            final sub = _toDouble(c['total'] ?? c['subtotal']);
-                            totalPrendas += cant;
-                            totalComprado += sub;
-                          }
-
-                          double totalPagado = 0;
-                          for (final p in pagos) {
-                            totalPagado += _toDouble(p['monto']);
-                          }
-
-                          final saldo = totalComprado - totalPagado;
-                          final deuda = saldo > 0.001 ? saldo : 0.0;
-
-                          return _ClienteData(
-                            id: id,
-                            nombre: nombre,
-                            telefono: telefono,
-                            direccion: direccion,
-                            fotoUrl: fotoUrl,
-                            adminId: cAdminId,
-                            prendas: totalPrendas,
-                            totalComprado: totalComprado,
-                            totalPagado: totalPagado,
-                            deuda: deuda,
-                            compras: compras,
-                            pagos: pagos,
-                          );
-                        })
-                        .whereType<_ClienteData>()
-                        .toList();
+                      return _ClienteData(
+                        id: id,
+                        nombre: nombre,
+                        telefono: telefono,
+                        direccion: direccion,
+                        prendas: totalPrendas,
+                        totalComprado: totalComprado,
+                        totalPagado: totalPagado,
+                        deuda: deuda,
+                        compras: compras,
+                        pagos: pagos,
+                      );
+                    }).toList();
 
                     // Filtrar por texto y por saldo
                     final busqueda = _buscarController.text.trim().toLowerCase();
@@ -347,21 +289,16 @@ class _ClientsScreenState extends State<ClientsScreen> {
                                           horizontal: 12,
                                           vertical: 5,
                                         ),
-                                        leading: StreamBuilder<String?>(
-                                          stream: PerfilFotoService.fotoStream(cliente.id),
-                                          builder: (context, snap) {
-                                            final foto = snap.data ?? cliente.fotoUrl;
-                                            return PerfilFotoService.avatarWidget(
-                                              context: context,
-                                              fotoData: foto,
-                                              iniciales: iniciales.isEmpty ? 'C' : iniciales,
-                                              nombre: cliente.nombre,
-                                              subtitulo: 'Cliente - ${cliente.telefono}',
-                                              radius: 20,
-                                              backgroundColor: const Color(0xFFFFEEF6),
-                                              textColor: AppTheme.violet,
-                                            );
-                                          },
+                                        leading: CircleAvatar(
+                                          backgroundColor: const Color(0xFFFFEEF6),
+                                          child: Text(
+                                            iniciales.isEmpty ? 'C' : iniciales,
+                                            style: const TextStyle(
+                                              color: AppTheme.violet,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
                                         ),
                                         title: Text(
                                           cliente.nombre,
@@ -427,40 +364,102 @@ class _ClientsScreenState extends State<ClientsScreen> {
     );
   }
 
-  Future<void> _nuevoCliente() async {
-    final guardado = await showDialog<bool>(
+  void _nuevoCliente() {
+    final nombreController = TextEditingController();
+    final telefonoController = TextEditingController();
+    final direccionController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (ctx) => _DialogoNuevaClienta(
-        onGuardar: (nombre, telefono, direccion) async {
-          final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-          final adminId = _adminId ?? uid;
-
-          await _db.collection('clientes').add({
-            'nombre': nombre,
-            'telefono': telefono,
-            'direccion': direccion,
-            'adminId': adminId,
-            'creadoPor': uid,
-            'fecha': FieldValue.serverTimestamp(),
-          });
-        },
-      ),
-    );
-
-    if (guardado == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Clienta agregada correctamente'),
-          backgroundColor: Color(0xFF15966B),
-          behavior: SnackBarBehavior.floating,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Nueva clienta'),
+        content: Form(
+          key: formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: nombreController,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre completo',
+                    prefixIcon: Icon(Icons.person_outline),
+                  ),
+                  validator: (v) =>
+                      v == null || v.trim().isEmpty ? 'Ingresa el nombre' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: telefonoController,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'Teléfono',
+                    prefixIcon: Icon(Icons.phone_outlined),
+                  ),
+                  validator: (v) =>
+                      v == null || v.trim().isEmpty ? 'Ingresa el teléfono' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: direccionController,
+                  textCapitalization: TextCapitalization.sentences,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Dirección de casa',
+                    hintText: 'Barrio, calle, número o referencia',
+                    prefixIcon: Icon(Icons.home_outlined),
+                    alignLabelWithHint: true,
+                  ),
+                  validator: (v) =>
+                      v == null || v.trim().isEmpty ? 'Ingresa la dirección' : null,
+                ),
+              ],
+            ),
+          ),
         ),
-      );
-    }
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              if (!formKey.currentState!.validate()) return;
+
+              final nombre = nombreController.text.trim();
+              final telefono = telefonoController.text.trim();
+              final direccion = direccionController.text.trim();
+
+              Navigator.pop(dialogContext);
+
+              await _db.collection('clientes').add({
+                'nombre': nombre,
+                'telefono': telefono,
+                'direccion': direccion,
+                'fecha': FieldValue.serverTimestamp(),
+              });
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Clienta agregada correctamente')),
+                );
+              }
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    ).then((_) {
+      nombreController.dispose();
+      telefonoController.dispose();
+      direccionController.dispose();
+    });
   }
 
-  Future<void> _resumenCliente(_ClienteData cliente) async {
-    final accion = await showModalBottomSheet<String>(
+  void _resumenCliente(_ClienteData cliente) {
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -469,7 +468,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
           initialChildSize: 0.78,
           minChildSize: 0.55,
           maxChildSize: 0.95,
-          builder: (_, scrollController) {
+          builder: (context, scrollController) {
             final iniciales = cliente.nombre
                 .trim()
                 .split(RegExp(r'\s+'))
@@ -499,21 +498,16 @@ class _ClientsScreenState extends State<ClientsScreen> {
                   const SizedBox(height: 22),
                   Row(
                     children: [
-                      StreamBuilder<String?>(
-                        stream: PerfilFotoService.fotoStream(cliente.id),
-                        builder: (_, snap) {
-                          final foto = snap.data ?? cliente.fotoUrl;
-                          return PerfilFotoService.avatarWidget(
-                            context: sheetContext,
-                            fotoData: foto,
-                            iniciales: iniciales.isEmpty ? 'C' : iniciales,
-                            nombre: cliente.nombre,
-                            subtitulo: 'Cliente - ${cliente.telefono}',
-                            radius: 26,
-                            backgroundColor: const Color(0xFFFFEEF6),
-                            textColor: AppTheme.violet,
-                          );
-                        },
+                      CircleAvatar(
+                        radius: 25,
+                        backgroundColor: const Color(0xFFFFEEF6),
+                        child: Text(
+                          iniciales.isEmpty ? 'C' : iniciales,
+                          style: const TextStyle(
+                            color: AppTheme.violet,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -683,7 +677,10 @@ class _ClientsScreenState extends State<ClientsScreen> {
                     children: [
                       Expanded(
                         child: FilledButton.icon(
-                          onPressed: () => Navigator.pop(sheetContext, 'prenda'),
+                          onPressed: () {
+                            Navigator.pop(sheetContext);
+                            _agregarPrenda(cliente);
+                          },
                           icon: const Icon(Icons.add),
                           label: const Text('Agregar prenda'),
                           style: FilledButton.styleFrom(
@@ -695,9 +692,12 @@ class _ClientsScreenState extends State<ClientsScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () => Navigator.pop(sheetContext, 'historial'),
-                          icon: const Icon(Icons.history),
-                          label: const Text('Ver historial'),
+                          onPressed: () {
+                            Navigator.pop(sheetContext);
+                            _registrarPago(cliente);
+                          },
+                          icon: const Icon(Icons.account_balance_wallet_outlined),
+                          label: const Text('Registrar pago'),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppTheme.violet,
                             padding: const EdgeInsets.symmetric(vertical: 14),
@@ -706,6 +706,15 @@ class _ClientsScreenState extends State<ClientsScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 6),
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(sheetContext);
+                      _verHistorial(cliente);
+                    },
+                    icon: const Icon(Icons.history),
+                    label: const Text('Ver historial'),
+                  ),
                 ],
               ),
             );
@@ -713,13 +722,6 @@ class _ClientsScreenState extends State<ClientsScreen> {
         );
       },
     );
-
-    if (!mounted || accion == null) return;
-    if (accion == 'prenda') {
-      _agregarPrenda(cliente);
-    } else if (accion == 'historial') {
-      _verHistorial(cliente);
-    }
   }
 
   Widget _filaTotal(String titulo, double monto) {
@@ -748,171 +750,323 @@ class _ClientsScreenState extends State<ClientsScreen> {
       return;
     }
 
-    final agregado = await showDialog<bool>(
+    PrendaModel seleccionada = disponibles.first;
+    final cantidadController = TextEditingController(text: '1');
+    final formKey = GlobalKey<FormState>();
+
+    if (!mounted) return;
+    showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (ctx) => _DialogoAgregarPrenda(
-        disponibles: disponibles,
-        onAgregar: (prenda, cantidad) async {
-          final total = prenda.precio * cantidad;
-          final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-          final adminId = _adminId ?? uid;
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (alertContext, actualizarDialogo) => AlertDialog(
+          title: const Text('Agregar prenda'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<PrendaModel>(
+                  initialValue: seleccionada,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Prenda'),
+                  items: disponibles.map((prenda) {
+                    return DropdownMenuItem(
+                      value: prenda,
+                      child: Text(
+                        '${prenda.nombre} — \$${prenda.precio.toStringAsFixed(2)}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (prenda) {
+                    if (prenda != null) {
+                      actualizarDialogo(() => seleccionada = prenda);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: cantidadController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Cantidad',
+                    prefixIcon: Icon(Icons.numbers),
+                  ),
+                  validator: (value) {
+                    final cantidad = int.tryParse(value ?? '');
+                    if (cantidad == null || cantidad < 1) {
+                      return 'Ingresa una cantidad válida';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                if (!formKey.currentState!.validate()) return;
+                final cantidad = int.parse(cantidadController.text);
+                final total = seleccionada.precio * cantidad;
 
-          await _db.collection('compras').add({
-            'clienteId': cliente.id,
-            'clienteNombre': cliente.nombre,
-            'prenda': prenda.nombre,
-            'prendaNombre': prenda.nombre,
-            'precio': prenda.precio,
-            'cantidad': cantidad,
-            'total': total,
-            'subtotal': total,
-            'adminId': adminId,
-            'creadoPor': uid,
-            'fecha': FieldValue.serverTimestamp(),
-          });
-        },
-      ),
-    );
+                Navigator.pop(dialogContext);
 
-    if (agregado == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Prenda agregada correctamente'),
-          backgroundColor: Color(0xFF15966B),
-          behavior: SnackBarBehavior.floating,
+                await _db.collection('compras').add({
+                  'clienteId': cliente.id,
+                  'clienteNombre': cliente.nombre,
+                  'prenda': seleccionada.nombre,
+                  'prendaNombre': seleccionada.nombre,
+                  'precio': seleccionada.precio,
+                  'cantidad': cantidad,
+                  'total': total,
+                  'subtotal': total,
+                  'fecha': FieldValue.serverTimestamp(),
+                });
+
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Prenda agregada correctamente'),
+                    ),
+                  );
+                }
+              },
+              child: const Text('Agregar'),
+            ),
+          ],
         ),
+      ),
+    ).then((_) => cantidadController.dispose());
+  }
+
+  void _registrarPago(_ClienteData cliente) {
+    if (cliente.deuda <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Esta clienta no tiene saldo pendiente')),
       );
+      return;
     }
+
+    final montoController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (modalContext, actualizarDialogo) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom,
+              ),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(20, 26, 20, 24),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+                ),
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'REGISTRAR PAGO',
+                        style: TextStyle(
+                          color: AppTheme.violet,
+                          fontSize: 10,
+                          letterSpacing: 1,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Pago de ${cliente.nombre}',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.dark,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF0E9),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Saldo pendiente',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFFD65C3B),
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '\$${cliente.deuda.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 21,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFD65C3B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      const Text(
+                        'Monto del pago',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: montoController,
+                        autofocus: false,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        decoration: const InputDecoration(
+                          prefixText: '\$ ',
+                          hintText: '0.00',
+                        ),
+                        validator: (value) {
+                          final monto = double.tryParse(
+                            (value ?? '').replaceAll(',', '.'),
+                          );
+                          if (monto == null || monto <= 0) {
+                            return 'Ingresa un monto válido';
+                          }
+                          if (monto > cliente.deuda + 0.001) {
+                            return 'El pago supera el saldo pendiente';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 7,
+                        runSpacing: 7,
+                        children: [
+                          for (final monto in [10.0, 20.0, cliente.deuda])
+                            OutlinedButton(
+                              onPressed: () {
+                                actualizarDialogo(() {
+                                  montoController.text = monto.toStringAsFixed(2);
+                                });
+                              },
+                              child: Text(
+                                monto == cliente.deuda
+                                    ? 'Saldo total'
+                                    : '\$${monto.toStringAsFixed(0)}',
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () async {
+                            if (!formKey.currentState!.validate()) return;
+                            final monto = double.parse(
+                              montoController.text.replaceAll(',', '.'),
+                            );
+
+                            Navigator.pop(sheetContext);
+
+                            await _db.collection('pagos').add({
+                              'clienteId': cliente.id,
+                              'clienteNombre': cliente.nombre,
+                              'monto': monto,
+                              'observacion': 'Abono desde clientas',
+                              'fecha': FieldValue.serverTimestamp(),
+                            });
+
+                            final nuevoSaldo = (cliente.deuda - monto).clamp(0.0, double.infinity);
+                            try {
+                              await _db.collection('clientes').doc(cliente.id).set({
+                                'saldo': nuevoSaldo,
+                                'ultimoPago': monto,
+                                'fechaUltimoPago': FieldValue.serverTimestamp(),
+                              }, SetOptions(merge: true));
+                            } catch (_) {}
+
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Pago registrado correctamente'),
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.check),
+                          label: const Text('Confirmar pago'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppTheme.violet,
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    ).whenComplete(montoController.dispose);
   }
 
   void _verHistorial(_ClienteData cliente) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetCtx) => DraggableScrollableSheet(
-        initialChildSize: 0.8,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        builder: (_, scrollController) {
-          final compras = cliente.compras;
-
-          return Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-            ),
-            child: ListView(
-              controller: scrollController,
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-              children: [
-                Center(
-                  child: Container(
-                    width: 38,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFDDD6E3),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Historial de ${cliente.nombre}',
+                style: const TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    PerfilFotoService.avatarWidget(
-                      context: sheetCtx,
-                      fotoData: cliente.fotoUrl,
-                      iniciales: cliente.nombre.trim().isNotEmpty
-                          ? cliente.nombre.trim()[0].toUpperCase()
-                          : 'C',
-                      nombre: cliente.nombre,
-                      subtitulo: 'Cliente - ${cliente.telefono}',
-                      radius: 22,
-                      backgroundColor: const Color(0xFFFFEEF6),
-                      textColor: AppTheme.violet,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'HISTORIAL DE COMPRAS',
-                            style: TextStyle(
-                              color: AppTheme.violet,
-                              fontSize: 10,
-                              letterSpacing: 1,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            cliente.nombre,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.dark,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.grey),
-                      onPressed: () => Navigator.pop(sheetCtx),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-
-                // Sección Compras
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: const [
-                        Icon(Icons.shopping_bag_outlined, size: 18, color: AppTheme.violet),
-                        SizedBox(width: 6),
-                        Text(
-                          'Compras realizadas',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.dark,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF0E9FC),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '${compras.length}',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.violet,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                if (compras.isEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    alignment: Alignment.center,
-                    child: const Text(
-                      'Sin compras registradas aún',
-                      style: TextStyle(color: AppTheme.muted, fontSize: 13),
-                    ),
-                  )
-                else
-                  ...compras.map((compra) {
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Compras',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              if (cliente.compras.isEmpty)
+                const ListTile(title: Text('Sin compras registradas'))
+              else
+                ...cliente.compras.map(
+                  (compra) {
                     final nombrePrenda = compra['prendaNombre'] ?? compra['prenda'] ?? 'Prenda';
                     final cant = _toInt(compra['cantidad']);
                     final subtotal = _toDouble(compra['total'] ?? compra['subtotal']);
@@ -920,296 +1074,61 @@ class _ClientsScreenState extends State<ClientsScreen> {
                     String fechaStr = 'Reciente';
                     if (ts is Timestamp) {
                       final f = ts.toDate();
-                      fechaStr = '${f.day.toString().padLeft(2, '0')}/${f.month.toString().padLeft(2, '0')}/${f.year}';
+                      fechaStr = '${f.day}/${f.month}/${f.year}';
                     }
 
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFBFBFC),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFF0EEF4)),
-                      ),
-                      child: ListTile(
-                        dense: true,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                        leading: Container(
-                          padding: const EdgeInsets.all(7),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF0E9FC),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(Icons.checkroom, size: 16, color: AppTheme.violet),
-                        ),
-                        title: Text(
-                          nombrePrenda,
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: Text(
-                          '$cant unidades · $fechaStr',
-                          style: const TextStyle(fontSize: 11, color: AppTheme.muted),
-                        ),
-                        trailing: Text(
-                          '\$${subtotal.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.dark,
-                          ),
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(nombrePrenda),
+                      subtitle: Text('$cant unidades · $fechaStr'),
+                      trailing: Text('\$${subtotal.toStringAsFixed(2)}'),
+                    );
+                  },
+                ),
+              const Divider(),
+              const Text(
+                'Pagos',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              if (cliente.pagos.isEmpty)
+                const ListTile(title: Text('Sin pagos registrados'))
+              else
+                ...cliente.pagos.map(
+                  (pago) {
+                    final monto = _toDouble(pago['monto']);
+                    final ts = pago['fecha'];
+                    String fechaStr = 'Reciente';
+                    if (ts is Timestamp) {
+                      final f = ts.toDate();
+                      fechaStr = '${f.day}/${f.month}/${f.year}';
+                    }
+
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Abono recibido'),
+                      subtitle: Text(fechaStr),
+                      trailing: Text(
+                        '\$${monto.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          color: AppTheme.green,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     );
-                  }),
-
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(sheetCtx),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                    child: const Text('Cerrar'),
-                  ),
+                  },
                 ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _DialogoNuevaClienta extends StatefulWidget {
-  final Future<void> Function(String nombre, String telefono, String direccion) onGuardar;
-
-  const _DialogoNuevaClienta({required this.onGuardar});
-
-  @override
-  State<_DialogoNuevaClienta> createState() => _DialogoNuevaClientaState();
-}
-
-class _DialogoNuevaClientaState extends State<_DialogoNuevaClienta> {
-  final _nombreController = TextEditingController();
-  final _telefonoController = TextEditingController();
-  final _direccionController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
-  bool _guardando = false;
-
-  @override
-  void dispose() {
-    _nombreController.dispose();
-    _telefonoController.dispose();
-    _direccionController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text('Nueva clienta', style: TextStyle(fontWeight: FontWeight.bold)),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: _nombreController,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                  labelText: 'Nombre completo',
-                  prefixIcon: Icon(Icons.person_outline),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cerrar'),
                 ),
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Ingresa el nombre' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _telefonoController,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  labelText: 'Teléfono',
-                  prefixIcon: Icon(Icons.phone_outlined),
-                ),
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Ingresa el teléfono' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _direccionController,
-                textCapitalization: TextCapitalization.sentences,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'Dirección de casa',
-                  hintText: 'Barrio, calle, número o referencia',
-                  prefixIcon: Icon(Icons.home_outlined),
-                  alignLabelWithHint: true,
-                ),
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Ingresa la dirección' : null,
               ),
             ],
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _guardando ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: AppTheme.violet),
-          onPressed: _guardando
-              ? null
-              : () async {
-                  if (!_formKey.currentState!.validate()) return;
-                  final nombre = _nombreController.text.trim();
-                  final telefono = _telefonoController.text.trim();
-                  final direccion = _direccionController.text.trim();
-
-                  setState(() => _guardando = true);
-                  try {
-                    await widget.onGuardar(nombre, telefono, direccion);
-                    if (!mounted) return;
-                    Navigator.of(this.context).pop(true);
-                  } catch (e) {
-                    if (!mounted) return;
-                    setState(() => _guardando = false);
-                    ScaffoldMessenger.of(this.context).showSnackBar(
-                      SnackBar(content: Text('Error al guardar: $e')),
-                    );
-                  }
-                },
-          child: _guardando
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Text('Guardar'),
-        ),
-      ],
-    );
-  }
-}
-
-class _DialogoAgregarPrenda extends StatefulWidget {
-  final List<PrendaModel> disponibles;
-  final Future<void> Function(PrendaModel prenda, int cantidad) onAgregar;
-
-  const _DialogoAgregarPrenda({
-    required this.disponibles,
-    required this.onAgregar,
-  });
-
-  @override
-  State<_DialogoAgregarPrenda> createState() => _DialogoAgregarPrendaState();
-}
-
-class _DialogoAgregarPrendaState extends State<_DialogoAgregarPrenda> {
-  late PrendaModel _seleccionada;
-  final _cantidadController = TextEditingController(text: '1');
-  final _formKey = GlobalKey<FormState>();
-  bool _guardando = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _seleccionada = widget.disponibles.first;
-  }
-
-  @override
-  void dispose() {
-    _cantidadController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text('Agregar prenda', style: TextStyle(fontWeight: FontWeight.bold)),
-      content: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<PrendaModel>(
-              initialValue: _seleccionada,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Prenda'),
-              items: widget.disponibles.map((prenda) {
-                return DropdownMenuItem(
-                  value: prenda,
-                  child: Text(
-                    '${prenda.nombre} — \$${prenda.precio.toStringAsFixed(2)}',
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                );
-              }).toList(),
-              onChanged: (prenda) {
-                if (prenda != null) {
-                  setState(() => _seleccionada = prenda);
-                }
-              },
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _cantidadController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Cantidad',
-                prefixIcon: Icon(Icons.numbers),
-              ),
-              validator: (value) {
-                final cantidad = int.tryParse(value ?? '');
-                if (cantidad == null || cantidad < 1) {
-                  return 'Ingresa una cantidad válida';
-                }
-                return null;
-              },
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: _guardando ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: AppTheme.violet),
-          onPressed: _guardando
-              ? null
-              : () async {
-                  if (!_formKey.currentState!.validate()) return;
-                  final cantidad = int.parse(_cantidadController.text);
-                  setState(() => _guardando = true);
-                  try {
-                    await widget.onAgregar(_seleccionada, cantidad);
-                    if (!mounted) return;
-                    Navigator.of(this.context).pop(true);
-                  } catch (e) {
-                    if (!mounted) return;
-                    setState(() => _guardando = false);
-                    ScaffoldMessenger.of(this.context).showSnackBar(
-                      SnackBar(content: Text('Error al agregar: $e')),
-                    );
-                  }
-                },
-          child: _guardando
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Text('Agregar'),
-        ),
-      ],
     );
   }
 }

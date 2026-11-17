@@ -12,6 +12,7 @@ import '../auth/login_screen.dart';
 import '../client/client_shell.dart';
 import 'clothing_prices_screen.dart';
 import 'jornadas_screen.dart';
+import 'payments_screen.dart';
 
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
@@ -129,11 +130,8 @@ class _MoreScreenState extends State<MoreScreen> {
                   stream: PerfilFotoService.fotoStream(usuarioId),
                   builder: (context, snapshot) {
                     return PerfilFotoService.avatarConInsignia(
-                      context: context,
                       fotoData: snapshot.data,
                       iniciales: iniciales.isEmpty ? '?' : iniciales,
-                      nombreUsuario: nombreFinal,
-                      rolUsuario: 'Secretaria',
                       radio: 26,
                       onTap: () {
                         if (usuarioId.isEmpty) return;
@@ -398,6 +396,14 @@ class _MoreScreenState extends State<MoreScreen> {
                   'Prendas y precios',
                   'Administra los precios de hoy',
                   const ClothingPricesScreen(),
+                ),
+                const Divider(height: 1, color: AppTheme.border),
+                _option(
+                  context,
+                  Icons.account_balance_wallet_outlined,
+                  'Pagos',
+                  'Registra abonos pendientes',
+                  const PaymentsScreen(),
                 ),
                 const Divider(height: 1, color: AppTheme.border),
                 ListTile(

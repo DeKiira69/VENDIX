@@ -32,8 +32,9 @@ set /p recompilar="Deseas compilar los ultimos cambios de Flutter Web? (S/N) [po
 if /i "%recompilar%"=="N" goto iniciar_servidor_web
 
 echo.
-echo [1/2] Compilando aplicacion web... (esto toma ~1 minuto)
-call flutter build web
+echo [1/2] Compilando aplicacion web...
+echo (Nota: La primera vez o tras cambios en librerias toma ~2 a 3 minutos, por favor espera...)
+call flutter build web --release
 if %errorlevel% neq 0 (
     echo.
     echo [ERROR] Hubo un problema al compilar para la web.
@@ -77,8 +78,13 @@ echo ========================================================
 echo.
 echo Detectando dispositivo Android conectado...
 set "DEVICE_ID="
-set "ADB_EXE=%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe"
+set "ADB_EXE=%LOCALAPPDATA%\Android\sdk\platform-tools\adb.exe"
+if not exist "%ADB_EXE%" set "ADB_EXE=%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe"
 if not exist "%ADB_EXE%" (
+    where adb >nul 2>&1
+    if %errorlevel% equ 0 set "ADB_EXE=adb"
+)
+if "%ADB_EXE%"=="" (
     echo [ERROR] No se encontro adb. Instala Android SDK Platform-Tools.
     pause
     goto :fin

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../models/administrador_model.dart';
 import '../../services/client_service.dart';
 import '../../services/perfil_foto_service.dart';
+import '../../widgets/store_location_map.dart';
 import '../auth/login_screen.dart';
 
 /// Pantalla de Perfil para el Emprendedor (Administrador).
@@ -27,18 +28,62 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   static const textoOscuro = Color(0xFF241B35);
   static const textoGris = Color(0xFF81798D);
 
+  Future<void> _guardarUbicacionTienda(
+    StoreLocation ubicacion, {
+    required String direccion,
+  }) async {
+    try {
+      final db = FirebaseFirestore.instance;
+      final cambios = {
+        'direccionTienda': direccion.trim(),
+        'latitudTienda': ubicacion.latitude,
+        'longitudTienda': ubicacion.longitude,
+        'actualizadoEn': FieldValue.serverTimestamp(),
+      };
+      final lote = db.batch();
+      lote.set(
+        db.collection('Administradores').doc(widget.admin.id),
+        cambios,
+        SetOptions(merge: true),
+      );
+      lote.set(
+        db.collection('usuarios').doc(widget.admin.id),
+        cambios,
+        SetOptions(merge: true),
+      );
+      await lote.commit();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ubicación de la tienda guardada.')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo guardar la ubicación: $error')),
+        );
+      }
+    }
+  }
+
   /// Muestra el modal para editar nombre, apellido y teléfono del emprendedor.
   void _mostrarModalEditarDatos({
     required String nombreActual,
     required String apellidoActual,
     required String emprendimientoActual,
     required String telefonoActual,
+    required String direccionTiendaActual,
+    required double? latitudTiendaActual,
+    required double? longitudTiendaActual,
   }) {
     final formKey = GlobalKey<FormState>();
     final nombreCtrl = TextEditingController(text: nombreActual);
     final apellidoCtrl = TextEditingController(text: apellidoActual);
     final emprendimientoCtrl = TextEditingController(text: emprendimientoActual);
     final telefonoCtrl = TextEditingController(text: telefonoActual);
+    final direccionTiendaCtrl = TextEditingController(text: direccionTiendaActual);
+    double? latitudTienda = latitudTiendaActual;
+    double? longitudTienda = longitudTiendaActual;
     bool guardando = false;
 
     showModalBottomSheet<void>(
@@ -153,6 +198,53 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                       ),
                       const SizedBox(height: 24),
 
+                      const Text(
+                        'Dirección de la tienda',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textoOscuro),
+                      ),
+                      const SizedBox(height: 6),
+                      StoreLocationAddressField(
+                        controller: direccionTiendaCtrl,
+                        initialLocation:
+                            latitudTienda != null && longitudTienda != null
+                                ? StoreLocation(
+                                    latitude: latitudTienda!,
+                                    longitude: longitudTienda!,
+                                  )
+                                : null,
+                        decoration: _inputDecor(
+                          'Calle, sector y referencia',
+                          Icons.location_on_outlined,
+                        ),
+                        onLocationSelected: (ubicacion) {
+                          setModalState(() {
+                            latitudTienda = ubicacion.latitude;
+                            longitudTienda = ubicacion.longitude;
+                          });
+                          _guardarUbicacionTienda(
+                            ubicacion,
+                            direccion: direccionTiendaCtrl.text,
+                          );
+                        },
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Escribe o selecciona la dirección de la tienda.';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      if (latitudTienda != null && longitudTienda != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            'Ubicación seleccionada: ${latitudTienda!.toStringAsFixed(5)}, ${longitudTienda!.toStringAsFixed(5)}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 11, color: textoGris),
+                          ),
+                        ),
+                      const SizedBox(height: 24),
+
                       // Botón Guardar
                       SizedBox(
                         height: 50,
@@ -167,6 +259,16 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                               ? null
                               : () async {
                                   if (!formKey.currentState!.validate()) return;
+                                  if (latitudTienda == null || longitudTienda == null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Selecciona la ubicación de la tienda en el mapa.',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
                                   setModalState(() => guardando = true);
 
                                   final uid = widget.admin.id;
@@ -174,6 +276,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                                   final nuevoApellido = apellidoCtrl.text.trim();
                                   final nuevoEmprendimiento = emprendimientoCtrl.text.trim();
                                   final nuevoTelefono = telefonoCtrl.text.trim();
+                                  final nuevaDireccionTienda = direccionTiendaCtrl.text.trim();
 
                                   try {
                                     final db = FirebaseFirestore.instance;
@@ -184,6 +287,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                                       'apellido': nuevoApellido,
                                       'nombreEmprendimiento': nuevoEmprendimiento,
                                       'telefono': nuevoTelefono,
+                                      'direccionTienda': nuevaDireccionTienda,
+                                      'latitudTienda': latitudTienda,
+                                      'longitudTienda': longitudTienda,
                                       'actualizadoEn': FieldValue.serverTimestamp(),
                                     };
 
@@ -385,6 +491,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         final email = data['correo']?.toString() ??
             (FirebaseAuth.instance.currentUser?.email ?? widget.admin.correo);
         final telefono = data['telefono']?.toString() ?? widget.admin.telefono;
+        final direccionTienda = data['direccionTienda']?.toString() ?? '';
+        final latitudTienda = (data['latitudTienda'] as num?)?.toDouble();
+        final longitudTienda = (data['longitudTienda'] as num?)?.toDouble();
 
         final iniciales = nombreCompleto
             .split(RegExp(r'\s+'))
@@ -448,11 +557,8 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                     stream: PerfilFotoService.fotoStream(uid),
                     builder: (context, fotoSnap) {
                       return PerfilFotoService.avatarConInsignia(
-                        context: context,
                         fotoData: fotoSnap.data,
                         iniciales: iniciales.isEmpty ? 'AD' : iniciales,
-                        nombreUsuario: nombreCompleto,
-                        rolUsuario: 'Administrador',
                         radio: 42,
                         onTap: () {
                           PerfilFotoService.mostrarOpcionesFotoWhatsApp(
@@ -549,6 +655,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                           apellidoActual: apellido,
                           emprendimientoActual: emprendimiento,
                           telefonoActual: telefono,
+                          direccionTiendaActual: direccionTienda,
+                          latitudTiendaActual: latitudTienda,
+                          longitudTiendaActual: longitudTienda,
                         );
                       },
                       icon: const Icon(Icons.edit_outlined, size: 16),

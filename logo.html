@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vendix - Splash Screen</title>
+  <style>
+    @import url('[https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@800&display=swap](https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@800&display=swap)');
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: #ffffff;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    .splash-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+    }
+
+    /* Entrada inicial + flotación continua arriba/abajo */
+    .logo-wrapper {
+      width: 145px;
+      height: 145px;
+      opacity: 0;
+      transform: scale(0.88) translateY(12px);
+      animation: 
+        logoEntrance 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+        logoFloat 3.4s ease-in-out 0.9s infinite;
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    /* Dibujo progresivo de los trazos vectoriales */
+    .bag-stroke {
+      stroke-dasharray: 420;
+      stroke-dashoffset: 420;
+      animation: drawStroke 0.85s cubic-bezier(0.33, 1, 0.68, 1) 0.2s forwards;
+    }
+
+    .handle-stroke {
+      stroke-dasharray: 140;
+      stroke-dashoffset: 140;
+      animation: drawStroke 0.6s cubic-bezier(0.33, 1, 0.68, 1) 0.4s forwards;
+    }
+
+    /* Órbita con entrada y balanceo sutil */
+    .swoosh-path {
+      opacity: 0;
+      transform-origin: 100px 105px;
+      transform: scale(0.9) rotate(-6deg);
+      animation: 
+        swooshReveal 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.5s forwards,
+        swooshSway 3.4s ease-in-out 1.25s infinite;
+    }
+
+    /* Barras internas con entrada y pulso orgánico continuo */
+    .bar {
+      transform-origin: bottom;
+      transform: scaleY(0);
+    }
+    .bar-1 { 
+      animation: 
+        barGrow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) 0.7s forwards,
+        barPulse 2.4s ease-in-out 1.2s infinite; 
+    }
+    .bar-2 { 
+      animation: 
+        barGrow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) 0.8s forwards,
+        barPulse 2.4s ease-in-out 1.45s infinite; 
+    }
+    .bar-3 { 
+      animation: 
+        barGrow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) 0.9s forwards,
+        barPulse 2.4s ease-in-out 1.7s infinite; 
+    }
+
+    /* Tipografía VENDIX con degradado a juego con el logo */
+    .brand-name {
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      padding-left: 0.18em;
+      background: linear-gradient(135deg, #6938EF 0%, #9E54E8 55%, #EC69B4 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      opacity: 0;
+      transform: translateY(10px);
+      animation: textReveal 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.8s forwards;
+    }
+
+    @keyframes logoEntrance {
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    @keyframes drawStroke {
+      to { stroke-dashoffset: 0; }
+    }
+    @keyframes swooshReveal {
+      to { opacity: 1; transform: scale(1) rotate(0deg); }
+    }
+    @keyframes barGrow {
+      to { transform: scaleY(1); }
+    }
+    @keyframes textReveal {
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes logoFloat {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-7px); }
+    }
+    @keyframes swooshSway {
+      0%, 100% { transform: rotate(0deg) scale(1); }
+      50% { transform: rotate(-2.5deg) scale(1.015); }
+    }
+    @keyframes barPulse {
+      0%, 100% { transform: scaleY(1); }
+      50% { transform: scaleY(0.72); }
+    }
+  </style>
+</head>
+<body>
+  <div class="splash-container">
+    <div class="logo-wrapper">
+      <svg viewBox="0 0 200 200" fill="none" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)">
+        <defs>
+          <linearGradient id="bgGrad" x1="25" y1="20" x2="175" y2="180" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#6938EF" />
+            <stop offset="55%" stop-color="#9E54E8" />
+            <stop offset="100%" stop-color="#F285C1" />
+          </linearGradient>
+
+          <linearGradient id="swooshGrad" x1="30" y1="115" x2="170" y2="90" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.85" />
+            <stop offset="50%" stop-color="#FFFFFF" stop-opacity="1" />
+            <stop offset="100%" stop-color="#F5D0FE" stop-opacity="0.9" />
+          </linearGradient>
+
+          <filter id="softShadow" x="-15%" y="-10%" width="130%" height="135%">
+            <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#7C3AED" flood-opacity="0.18" />
+          </filter>
+        </defs>
+
+        <!-- Cuadrado redondeado -->
+        <rect x="20" y="20" width="160" height="160" rx="44" fill="url(#bgGrad)" filter="url(#softShadow)" />
+
+        <!-- Asa de la bolsa -->
+        <path
+          class="handle-stroke"
+          d="M80 74V62C80 50.9543 88.9543 42 100 42C111.046 42 120 50.9543 120 62V74"
+          stroke="#FFFFFF"
+          stroke-width="7.5"
+          stroke-linecap="round"
+        />
+
+        <!-- Cuerpo de la bolsa -->
+        <path
+          class="bag-stroke"
+          d="M66 74H134C138.971 74 143.138 77.775 143.621 82.722L149.121 139.022C149.687 144.819 145.134 149.8 139.309 149.8H60.691C54.866 149.8 50.313 144.819 50.879 139.022L56.379 82.722C56.862 77.775 61.029 74 66 74Z"
+          stroke="#FFFFFF"
+          stroke-width="7.5"
+          stroke-linejoin="round"
+        />
+
+        <!-- Barras internas animadas en bucle -->
+        <rect class="bar bar-1" x="108" y="128" width="5.5" height="9" rx="2.75" fill="#FFFFFF" />
+        <rect class="bar bar-2" x="118" y="121" width="5.5" height="16" rx="2.75" fill="#FFFFFF" />
+        <rect class="bar bar-3" x="128" y="114" width="5.5" height="23" rx="2.75" fill="#FFFFFF" />
+
+        <!-- Órbita envolvente -->
+        <path
+          class="swoosh-path"
+          d="M52 94C35 103 29 116 40 124C54 134 102 126 142 108C166 97 174 85 162 78C156 75 148 74 140 75C148 76 154 78 156 82C160 89 142 101 112 112C76 125 46 126 42 118C39 112 44 103 54 96L52 94Z"
+          fill="url(#swooshGrad)"
+        />
+      </svg>
+    </div>
+
+    <div class="brand-name">VENDIX</div>
+  </div>
+</body>
+</html>

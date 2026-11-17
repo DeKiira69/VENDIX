@@ -11,6 +11,7 @@ import '../secretary/statistics_screen.dart';
 import 'admin_more_screen.dart';
 import 'admin_profile_screen.dart';
 import '../../services/perfil_foto_service.dart';
+import '../../widgets/store_location_map.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   final AdministradorModel admin;
@@ -53,7 +54,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           _ultimoToqueAtras = ahora;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Presiona atrás de nuevo para salir de la aplicación'),
+              content: Text(
+                'Presiona atrás de nuevo para salir de la aplicación',
+              ),
               duration: Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
             ),
@@ -70,10 +73,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           child: _footerIndex == 0
               ? _buildHomeContent()
               : _footerIndex == 1
-                  ? const QuickSalesScreen()
-                  : _footerIndex == 2
-                      ? AdminMoreScreen(admin: widget.admin)
-                      : AdminProfileScreen(admin: widget.admin),
+              ? const QuickSalesScreen()
+              : _footerIndex == 2
+              ? AdminMoreScreen(admin: widget.admin)
+              : AdminProfileScreen(admin: widget.admin),
         ),
         bottomNavigationBar: Container(
           decoration: BoxDecoration(
@@ -236,7 +239,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             if (hayLive) {
               final primerDoc =
                   snapJornadas.data!.docs.first.data() as Map<String, dynamic>;
-              detalleLive = primerDoc['nombre']?.toString() ?? 'TikTok & FB Live';
+              detalleLive =
+                  primerDoc['nombre']?.toString() ?? 'TikTok & FB Live';
             }
 
             return Container(
@@ -311,12 +315,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       final admId = d['adminId']?.toString() ?? '';
 
                       // Pertenece a este admin si coincide adminId o si es de una de sus clientas
-                      final pertenece = admId == widget.admin.id ||
+                      final pertenece =
+                          admId == widget.admin.id ||
                           misClientesIds.contains(cId);
 
                       if (!pertenece) continue;
 
-                      final monto = (d['total'] ?? d['subtotal'] ?? 0).toDouble();
+                      final monto = (d['total'] ?? d['subtotal'] ?? 0)
+                          .toDouble();
                       final cant = (d['cantidad'] is num)
                           ? (d['cantidad'] as num).toInt()
                           : 1;
@@ -326,7 +332,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       final ts = d['fecha'];
                       if (ts is Timestamp) {
                         final fecha = ts.toDate();
-                        if (fecha.isAfter(inicioHoy) && fecha.isBefore(finHoy)) {
+                        if (fecha.isAfter(inicioHoy) &&
+                            fecha.isBefore(finHoy)) {
                           totalVendidoHoy += monto;
                           prendasVendidasHoy += cant;
                         }
@@ -341,7 +348,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       final cId = d['clienteId']?.toString() ?? '';
                       final admId = d['adminId']?.toString() ?? '';
 
-                      final pertenece = admId == widget.admin.id ||
+                      final pertenece =
+                          admId == widget.admin.id ||
                           misClientesIds.contains(cId);
 
                       if (!pertenece) continue;
@@ -352,14 +360,18 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       final ts = d['fecha'];
                       if (ts is Timestamp) {
                         final fecha = ts.toDate();
-                        if (fecha.isAfter(inicioHoy) && fecha.isBefore(finHoy)) {
+                        if (fecha.isAfter(inicioHoy) &&
+                            fecha.isBefore(finHoy)) {
                           cobradoHoy += monto;
                         }
                       }
                     }
 
-                    final saldoPorCobrar = (totalVendidoHistorico - totalCobradoHistorico);
-                    final porCobrar = saldoPorCobrar > 0.001 ? saldoPorCobrar : 0.0;
+                    final saldoPorCobrar =
+                        (totalVendidoHistorico - totalCobradoHistorico);
+                    final porCobrar = saldoPorCobrar > 0.001
+                        ? saldoPorCobrar
+                        : 0.0;
 
                     return Column(
                       children: [
@@ -368,7 +380,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                             Expanded(
                               child: _buildMetricCard(
                                 titulo: 'Total Vendido Hoy',
-                                valor: '\$${totalVendidoHoy.toStringAsFixed(2)}',
+                                valor:
+                                    '\$${totalVendidoHoy.toStringAsFixed(2)}',
                                 colorValor: AppTheme.dark,
                               ),
                             ),
@@ -412,7 +425,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         ),
         const SizedBox(height: 24),
 
-        // Botón Venta Rápida
+        // Acceso a la ubicación física registrada de esta tienda.
         SizedBox(
           width: double.infinity,
           height: 52,
@@ -428,12 +441,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const QuickSalesScreen()),
+                MaterialPageRoute(
+                  builder: (_) => AdminStoreLocationScreen(admin: widget.admin),
+                ),
               );
             },
-            icon: const Icon(Icons.flash_on, size: 20),
+            icon: const Icon(Icons.location_on_outlined, size: 20),
             label: const Text(
-              'VENTA RÁPIDA EN VIVO',
+              'MI UBICACIÓN',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
             ),
           ),
@@ -459,9 +474,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => ClientsScreen(adminId: widget.admin.id),
-              ),
+              MaterialPageRoute(builder: (_) => const ClientsScreen()),
             );
           },
         ),
@@ -506,8 +519,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             onTap: () {
               setState(() => _footerIndex = 2);
             },
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 4,
+            ),
             leading: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
@@ -562,7 +577,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(titulo, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          Text(
+            titulo,
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+          ),
           const SizedBox(height: 6),
           Text(
             valor,
@@ -610,6 +628,116 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           size: 14,
           color: AppTheme.muted,
         ),
+      ),
+    );
+  }
+}
+
+class AdminStoreLocationScreen extends StatelessWidget {
+  final AdministradorModel admin;
+
+  const AdminStoreLocationScreen({super.key, required this.admin});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        title: const Text('Mi ubicación'),
+        backgroundColor: Colors.white,
+        foregroundColor: AppTheme.violet,
+      ),
+      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: FirebaseFirestore.instance
+            .collection('Administradores')
+            .doc(admin.id)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const Center(
+              child: Text('No se pudo cargar la ubicación de la tienda.'),
+            );
+          }
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final tienda = snapshot.data?.data() ?? const <String, dynamic>{};
+          final latitud = (tienda['latitudTienda'] as num?)?.toDouble();
+          final longitud = (tienda['longitudTienda'] as num?)?.toDouble();
+          final direccion = tienda['direccionTienda']?.toString().trim() ?? '';
+          final tieneUbicacion =
+              latitud != null &&
+              longitud != null &&
+              !(latitud == 0 && longitud == 0);
+
+          if (!tieneUbicacion) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.location_off_outlined,
+                      size: 48,
+                      color: AppTheme.muted,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Aún no has registrado la ubicación de tu tienda.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AdminProfileScreen(admin: admin),
+                        ),
+                      ),
+                      icon: const Icon(Icons.edit_location_alt_outlined),
+                      label: const Text('Configurar ubicación'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (direccion.isNotEmpty)
+                Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.location_on, color: AppTheme.violet),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          direccion,
+                          style: const TextStyle(color: AppTheme.dark),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) => StoreLocationPreview(
+                    latitude: latitud,
+                    longitude: longitud,
+                    height: constraints.maxHeight,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

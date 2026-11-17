@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// Widget que renderiza y anima el isotipo y marca VENDIX con fidelidad 1:1
 /// respecto a la especificación vectorial SVG/HTML a 60/120 FPS nativos.
@@ -164,12 +164,13 @@ class _VendixLogoState extends State<VendixLogo> with TickerProviderStateMixin {
         curve: const Interval(0.40, 1.0, curve: bezierEaseOut),
       ),
     );
-    _swooshRotation = Tween<double>(begin: -6.0 * (math.pi / 180.0), end: 0.0).animate(
-      CurvedAnimation(
-        parent: _entranceController,
-        curve: const Interval(0.40, 1.0, curve: bezierEaseOut),
-      ),
-    );
+    _swooshRotation = Tween<double>(begin: -6.0 * (math.pi / 180.0), end: 0.0)
+        .animate(
+          CurvedAnimation(
+            parent: _entranceController,
+            curve: const Interval(0.40, 1.0, curve: bezierEaseOut),
+          ),
+        );
 
     // Barras: barGrow 0.4s (delays 0.7s, 0.8s, 0.9s -> 0.56, 0.64, 0.72 hasta 0.88, 0.96, 1.0)
     _bar1Growth = Tween<double>(begin: 0.0, end: 1.0).animate(
@@ -210,11 +211,17 @@ class _VendixLogoState extends State<VendixLogo> with TickerProviderStateMixin {
     // logoFloat: 0s -> -7px -> 0s
     _logoFloatY = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 0.0, end: -7.0).chain(CurveTween(curve: Curves.easeInOut)),
+        tween: Tween<double>(
+          begin: 0.0,
+          end: -7.0,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
         weight: 50.0,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: -7.0, end: 0.0).chain(CurveTween(curve: Curves.easeInOut)),
+        tween: Tween<double>(
+          begin: -7.0,
+          end: 0.0,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
         weight: 50.0,
       ),
     ]).animate(_loopController);
@@ -222,76 +229,107 @@ class _VendixLogoState extends State<VendixLogo> with TickerProviderStateMixin {
     // swooshSway: 0deg, scale 1.0 -> -2.5deg, scale 1.015 -> 0deg, scale 1.0
     _swooshSwayAngle = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 0.0, end: -2.5 * (math.pi / 180.0))
-            .chain(CurveTween(curve: Curves.easeInOut)),
+        tween: Tween<double>(
+          begin: 0.0,
+          end: -2.5 * (math.pi / 180.0),
+        ).chain(CurveTween(curve: Curves.easeInOut)),
         weight: 50.0,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: -2.5 * (math.pi / 180.0), end: 0.0)
-            .chain(CurveTween(curve: Curves.easeInOut)),
+        tween: Tween<double>(
+          begin: -2.5 * (math.pi / 180.0),
+          end: 0.0,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
         weight: 50.0,
       ),
     ]).animate(_loopController);
 
     _swooshSwayScale = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.0, end: 1.015).chain(CurveTween(curve: Curves.easeInOut)),
+        tween: Tween<double>(
+          begin: 1.0,
+          end: 1.015,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
         weight: 50.0,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.015, end: 1.0).chain(CurveTween(curve: Curves.easeInOut)),
+        tween: Tween<double>(
+          begin: 1.015,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
         weight: 50.0,
       ),
     ]).animate(_loopController);
 
     // barPulse con desfase orgánico senoidal continuo: scaleY 1.0 -> 0.72 -> 1.0
-    _bar1Pulse = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 1.0, end: 0.72).chain(CurveTween(curve: Curves.easeInOut)),
-        weight: 50.0,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 0.72, end: 1.0).chain(CurveTween(curve: Curves.easeInOut)),
-        weight: 50.0,
-      ),
-    ]).animate(
-      CurvedAnimation(
-        parent: _loopController,
-        curve: const Interval(0.0, 0.75, curve: Curves.linear),
-      ),
-    );
+    _bar1Pulse =
+        TweenSequence<double>([
+          TweenSequenceItem(
+            tween: Tween<double>(
+              begin: 1.0,
+              end: 0.72,
+            ).chain(CurveTween(curve: Curves.easeInOut)),
+            weight: 50.0,
+          ),
+          TweenSequenceItem(
+            tween: Tween<double>(
+              begin: 0.72,
+              end: 1.0,
+            ).chain(CurveTween(curve: Curves.easeInOut)),
+            weight: 50.0,
+          ),
+        ]).animate(
+          CurvedAnimation(
+            parent: _loopController,
+            curve: const Interval(0.0, 0.75, curve: Curves.linear),
+          ),
+        );
 
-    _bar2Pulse = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 1.0, end: 0.72).chain(CurveTween(curve: Curves.easeInOut)),
-        weight: 50.0,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 0.72, end: 1.0).chain(CurveTween(curve: Curves.easeInOut)),
-        weight: 50.0,
-      ),
-    ]).animate(
-      CurvedAnimation(
-        parent: _loopController,
-        curve: const Interval(0.12, 0.87, curve: Curves.linear),
-      ),
-    );
+    _bar2Pulse =
+        TweenSequence<double>([
+          TweenSequenceItem(
+            tween: Tween<double>(
+              begin: 1.0,
+              end: 0.72,
+            ).chain(CurveTween(curve: Curves.easeInOut)),
+            weight: 50.0,
+          ),
+          TweenSequenceItem(
+            tween: Tween<double>(
+              begin: 0.72,
+              end: 1.0,
+            ).chain(CurveTween(curve: Curves.easeInOut)),
+            weight: 50.0,
+          ),
+        ]).animate(
+          CurvedAnimation(
+            parent: _loopController,
+            curve: const Interval(0.12, 0.87, curve: Curves.linear),
+          ),
+        );
 
-    _bar3Pulse = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 1.0, end: 0.72).chain(CurveTween(curve: Curves.easeInOut)),
-        weight: 50.0,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 0.72, end: 1.0).chain(CurveTween(curve: Curves.easeInOut)),
-        weight: 50.0,
-      ),
-    ]).animate(
-      CurvedAnimation(
-        parent: _loopController,
-        curve: const Interval(0.24, 0.99, curve: Curves.linear),
-      ),
-    );
+    _bar3Pulse =
+        TweenSequence<double>([
+          TweenSequenceItem(
+            tween: Tween<double>(
+              begin: 1.0,
+              end: 0.72,
+            ).chain(CurveTween(curve: Curves.easeInOut)),
+            weight: 50.0,
+          ),
+          TweenSequenceItem(
+            tween: Tween<double>(
+              begin: 0.72,
+              end: 1.0,
+            ).chain(CurveTween(curve: Curves.easeInOut)),
+            weight: 50.0,
+          ),
+        ]).animate(
+          CurvedAnimation(
+            parent: _loopController,
+            curve: const Interval(0.24, 0.99, curve: Curves.linear),
+          ),
+        );
   }
 
   @override
@@ -311,21 +349,33 @@ class _VendixLogoState extends State<VendixLogo> with TickerProviderStateMixin {
         // Cálculos acumulados de transformación
         final opacity = widget.animateEntrance ? _logoOpacity.value : 1.0;
         final scale = widget.animateEntrance ? _logoScale.value : 1.0;
-        final floatY = (widget.continuousLoop && entranceDone) ? _logoFloatY.value : 0.0;
+        final floatY = (widget.continuousLoop && entranceDone)
+            ? _logoFloatY.value
+            : 0.0;
         final entranceY = widget.animateEntrance ? _logoTranslateY.value : 0.0;
         final totalTranslateY = entranceY + floatY;
 
         // Trazado progresivo
         final bagProg = widget.animateEntrance ? _bagStrokeProgress.value : 1.0;
-        final handleProg = widget.animateEntrance ? _handleStrokeProgress.value : 1.0;
+        final handleProg = widget.animateEntrance
+            ? _handleStrokeProgress.value
+            : 1.0;
 
         // Órbita
         final swooshOp = widget.animateEntrance ? _swooshOpacity.value : 1.0;
-        final baseSwooshScale = widget.animateEntrance ? _swooshScale.value : 1.0;
-        final baseSwooshRot = widget.animateEntrance ? _swooshRotation.value : 0.0;
+        final baseSwooshScale = widget.animateEntrance
+            ? _swooshScale.value
+            : 1.0;
+        final baseSwooshRot = widget.animateEntrance
+            ? _swooshRotation.value
+            : 0.0;
 
-        final swayScale = (widget.continuousLoop && entranceDone) ? _swooshSwayScale.value : 1.0;
-        final swayRot = (widget.continuousLoop && entranceDone) ? _swooshSwayAngle.value : 0.0;
+        final swayScale = (widget.continuousLoop && entranceDone)
+            ? _swooshSwayScale.value
+            : 1.0;
+        final swayRot = (widget.continuousLoop && entranceDone)
+            ? _swooshSwayAngle.value
+            : 0.0;
 
         final totalSwooshScale = baseSwooshScale * swayScale;
         final totalSwooshRot = baseSwooshRot + swayRot;
@@ -335,9 +385,15 @@ class _VendixLogoState extends State<VendixLogo> with TickerProviderStateMixin {
         final b2Grow = widget.animateEntrance ? _bar2Growth.value : 1.0;
         final b3Grow = widget.animateEntrance ? _bar3Growth.value : 1.0;
 
-        final b1Pulse = (widget.continuousLoop && entranceDone) ? _bar1Pulse.value : 1.0;
-        final b2Pulse = (widget.continuousLoop && entranceDone) ? _bar2Pulse.value : 1.0;
-        final b3Pulse = (widget.continuousLoop && entranceDone) ? _bar3Pulse.value : 1.0;
+        final b1Pulse = (widget.continuousLoop && entranceDone)
+            ? _bar1Pulse.value
+            : 1.0;
+        final b2Pulse = (widget.continuousLoop && entranceDone)
+            ? _bar2Pulse.value
+            : 1.0;
+        final b3Pulse = (widget.continuousLoop && entranceDone)
+            ? _bar3Pulse.value
+            : 1.0;
 
         final bar1HeightFactor = b1Grow * b1Pulse;
         final bar2HeightFactor = b2Grow * b2Pulse;
@@ -381,7 +437,8 @@ class _VendixLogoState extends State<VendixLogo> with TickerProviderStateMixin {
             if (widget.showText) ...[
               SizedBox(height: widget.spacing),
               Opacity(
-                opacity: (widget.animateEntrance ? _textOpacity.value : 1.0).clamp(0.0, 1.0),
+                opacity: (widget.animateEntrance ? _textOpacity.value : 1.0)
+                    .clamp(0.0, 1.0),
                 child: Transform.translate(
                   offset: Offset(
                     0,
@@ -402,7 +459,7 @@ class _VendixLogoState extends State<VendixLogo> with TickerProviderStateMixin {
                     },
                     child: Text(
                       'VENDIX',
-                      style: GoogleFonts.plusJakartaSans(
+                      style: TextStyle(
                         fontSize: widget.fontSize,
                         fontWeight: FontWeight.w800,
                         letterSpacing: widget.fontSize * 0.18,
@@ -531,11 +588,7 @@ class VendixLogoPainter extends CustomPainter {
       ..shader = ui.Gradient.linear(
         const Offset(25, 20),
         const Offset(175, 180),
-        const [
-          Color(0xFF6938EF),
-          Color(0xFF9E54E8),
-          Color(0xFFF285C1),
-        ],
+        const [Color(0xFF6938EF), Color(0xFF9E54E8), Color(0xFFF285C1)],
         const [0.0, 0.55, 1.0],
       );
 

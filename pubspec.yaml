@@ -42,13 +42,12 @@ dependencies:
   google_sign_in: ^7.2.0
   image_picker: ^1.2.4
   http: ^1.2.2
+  mapbox_maps_flutter: ^3.34.2
   google_generative_ai: ^0.4.7
-  google_fonts: ^6.2.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_launcher_icons: ^0.14.3
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -67,23 +66,6 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
-
-  assets:
-    - assets/icon/
-
-flutter_launcher_icons:
-  android: "launcher_icon"
-  ios: true
-  image_path: "assets/icon/app_icon.png"
-  adaptive_icon_background: "assets/icon/adaptive_background.png"
-  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
-  web:
-    generate: true
-    image_path: "assets/icon/app_icon.png"
-  windows:
-    generate: true
-    image_path: "assets/icon/app_icon.png"
-
 
   # To add assets to your application, add an assets section, like this:
   # assets:

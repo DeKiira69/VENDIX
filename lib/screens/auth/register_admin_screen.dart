@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/administrador_model.dart';
 import '../../services/google_auth_service.dart';
+import '../../widgets/store_location_map.dart';
 import '../admin/admin_home_screen.dart';
 
 /// Pantalla de registro para Emprendedores (Administradores).
@@ -25,10 +26,14 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
   final _nombre = TextEditingController();
   final _apellido = TextEditingController();
   final _emprendimiento = TextEditingController();
+  final _direccionTienda = TextEditingController();
   final _telefono = TextEditingController();
   final _correo = TextEditingController();
   final _contrasena = TextEditingController();
   final _confirmacion = TextEditingController();
+
+  double? _latitudTienda;
+  double? _longitudTienda;
 
   bool _ocultar = true;
   bool _cargando = false;
@@ -52,6 +57,7 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
     _nombre.dispose();
     _apellido.dispose();
     _emprendimiento.dispose();
+    _direccionTienda.dispose();
     _telefono.dispose();
     _correo.dispose();
     _contrasena.dispose();
@@ -79,6 +85,12 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
   Future<void> _registrar() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate() || _cargando) return;
+    if (_latitudTienda == null || _longitudTienda == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecciona la ubicación de la tienda en el mapa.')),
+      );
+      return;
+    }
 
     setState(() => _cargando = true);
 
@@ -99,6 +111,9 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
         nombre: _nombre.text.trim(),
         apellido: _apellido.text.trim(),
         nombreEmprendimiento: _emprendimiento.text.trim(),
+        direccionTienda: _direccionTienda.text.trim(),
+        latitudTienda: _latitudTienda!,
+        longitudTienda: _longitudTienda!,
         correo: _correo.text.trim(),
         telefono: _telefono.text.trim(),
         fotoUrl: '',
@@ -176,6 +191,9 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
 
   /// Modal para completar datos cuando el usuario viene de Google.
   Future<void> _mostrarModalDatosGoogle(User usuario) async {
+    _direccionTienda.clear();
+    _latitudTienda = null;
+    _longitudTienda = null;
     final partes = (usuario.displayName ?? '').trim().split(RegExp(r'\s+'));
     final nombreCtrl =
         TextEditingController(text: partes.isNotEmpty ? partes.first : '');
@@ -281,6 +299,27 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
                   ),
                   const SizedBox(height: 14),
 
+                  const Text(
+                    'Dirección de la tienda',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  const SizedBox(height: 6),
+                  StoreLocationAddressField(
+                    controller: _direccionTienda,
+                    decoration: _decoracion(
+                      'Calle, sector y referencia',
+                      Icons.location_on_outlined,
+                    ),
+                    onLocationSelected: (ubicacion) {
+                      _latitudTienda = ubicacion.latitude;
+                      _longitudTienda = ubicacion.longitude;
+                    },
+                    validator: (v) => v == null || v.trim().isEmpty
+                        ? 'Selecciona la dirección de la tienda en el mapa.'
+                        : null,
+                  ),
+                  const SizedBox(height: 14),
+
                   // Teléfono
                   const Text(
                     'Teléfono',
@@ -308,6 +347,14 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
                       ),
                       onPressed: () async {
                         if (!formKey.currentState!.validate()) return;
+                        if (_latitudTienda == null || _longitudTienda == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Selecciona la ubicación de la tienda en el mapa.'),
+                            ),
+                          );
+                          return;
+                        }
                         Navigator.pop(bottomCtx);
                         setState(() => _cargando = true);
                         try {
@@ -316,6 +363,9 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
                             nombre: nombreCtrl.text.trim(),
                             apellido: apellidoCtrl.text.trim(),
                             nombreEmprendimiento: emprendimientoCtrl.text.trim(),
+                            direccionTienda: _direccionTienda.text.trim(),
+                            latitudTienda: _latitudTienda!,
+                            longitudTienda: _longitudTienda!,
                             correo: usuario.email ?? '',
                             telefono: telefonoCtrl.text.trim(),
                             fotoUrl: usuario.photoURL ?? '',
@@ -371,6 +421,9 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
     required String nombre,
     required String apellido,
     required String nombreEmprendimiento,
+    required String direccionTienda,
+    required double latitudTienda,
+    required double longitudTienda,
     required String correo,
     required String telefono,
     required String fotoUrl,
@@ -387,6 +440,9 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
       'nombreEmprendimiento': nombreEmprendimiento,
       'correo': correo,
       'telefono': telefono,
+      'direccionTienda': direccionTienda,
+      'latitudTienda': latitudTienda,
+      'longitudTienda': longitudTienda,
       'fotoUrl': fotoUrl,
       'estado': true,
       'creadoEn': FieldValue.serverTimestamp(),
@@ -401,6 +457,9 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
       'nombreEmprendimiento': nombreEmprendimiento,
       'correo': correo,
       'telefono': telefono,
+      'direccionTienda': direccionTienda,
+      'latitudTienda': latitudTienda,
+      'longitudTienda': longitudTienda,
       'fotoUrl': fotoUrl,
       'rol': 'administrador',
       'estado': true,
@@ -562,6 +621,28 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
                           }
                           return null;
                         },
+                      ),
+                      const SizedBox(height: 16),
+
+                      const Text(
+                        'Dirección de la tienda',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 7),
+                      StoreLocationAddressField(
+                        controller: _direccionTienda,
+                        decoration: _decoracion(
+                          'Calle, sector y referencia',
+                          Icons.location_on_outlined,
+                        ),
+                        onLocationSelected: (ubicacion) {
+                          _latitudTienda = ubicacion.latitude;
+                          _longitudTienda = ubicacion.longitude;
+                        },
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                                ? 'Escribe o selecciona la dirección de la tienda.'
+                                : null,
                       ),
                       const SizedBox(height: 16),
 

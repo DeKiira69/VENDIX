@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import '../../theme/app_theme.dart';
 import '../../models/administrador_model.dart';
 import '../../services/client_service.dart';
 import '../secretary/clothing_prices_screen.dart';
+import '../secretary/payments_screen.dart';
 import '../auth/login_screen.dart';
 import '../../services/perfil_foto_service.dart';
+import '../../firebase_options.dart';
 
 /// Pantalla "Más opciones" del admin – Figma fiel.
 ///
@@ -18,11 +21,7 @@ class AdminMoreScreen extends StatelessWidget {
   final AdministradorModel admin;
   final VoidCallback? onVolver;
 
-  const AdminMoreScreen({
-    super.key,
-    required this.admin,
-    this.onVolver,
-  });
+  const AdminMoreScreen({super.key, required this.admin, this.onVolver});
 
   @override
   Widget build(BuildContext context) {
@@ -102,15 +101,24 @@ class AdminMoreScreen extends StatelessWidget {
                   StreamBuilder<String?>(
                     stream: PerfilFotoService.fotoStream(admin.id),
                     builder: (context, fotoSnap) {
-                      return PerfilFotoService.avatarWidget(
-                        context: context,
-                        fotoData: fotoSnap.data,
-                        iniciales: admin.iniciales,
-                        nombre: admin.nombre,
-                        subtitulo: 'Administrador',
+                      final foto = fotoSnap.data;
+                      if (foto != null && foto.isNotEmpty) {
+                        return CircleAvatar(
+                          radius: 24,
+                          backgroundColor: const Color(0x55FFFFFF),
+                          backgroundImage: NetworkImage(foto),
+                        );
+                      }
+                      return CircleAvatar(
                         radius: 24,
                         backgroundColor: const Color(0x55FFFFFF),
-                        textColor: Colors.white,
+                        child: Text(
+                          admin.iniciales,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       );
                     },
                   ),
@@ -201,7 +209,19 @@ class AdminMoreScreen extends StatelessWidget {
               subtitle: 'Editar catálogo, códigos y precios oficiales',
               destination: const ClothingPricesScreen(),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
+
+            _buildActionCard(
+              context,
+              icon: Icons.payments_outlined,
+              iconBg: const Color(0xFFE8F5E9),
+              iconColor: AppTheme.green,
+              title: 'Gestión de pagos',
+              subtitle: 'Revisar abonos, verificar transferencias y saldos',
+              destination: const PaymentsScreen(),
+            ),
+
+            const SizedBox(height: 26),
 
             // ─── Ajustes de la cuenta ───
             const Text(
@@ -223,30 +243,59 @@ class AdminMoreScreen extends StatelessWidget {
               child: Column(
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.palette_outlined, color: AppTheme.violet),
-                    title: const Text('Tema y apariencia', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                    subtitle: const Text('Colores del live y formato de moneda', style: TextStyle(fontSize: 11, color: AppTheme.muted)),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppTheme.muted),
+                    leading: const Icon(
+                      Icons.palette_outlined,
+                      color: AppTheme.violet,
+                    ),
+                    title: const Text(
+                      'Tema y apariencia',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Colores del live y formato de moneda',
+                      style: TextStyle(fontSize: 11, color: AppTheme.muted),
+                    ),
+                    trailing: const Icon(
+                      Icons.arrow_forward_ios,
+                      size: 14,
+                      color: AppTheme.muted,
+                    ),
                     onTap: () {},
                   ),
                   const Divider(height: 1, indent: 56, endIndent: 16),
                   ListTile(
                     leading: const Icon(Icons.logout, color: Colors.redAccent),
-                    title: const Text('Cerrar sesión', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.redAccent)),
+                    title: const Text(
+                      'Cerrar sesión',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.redAccent,
+                      ),
+                    ),
                     onTap: () {
                       showDialog(
                         context: context,
                         builder: (ctx) => AlertDialog(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                           title: const Text('Cerrar sesión'),
-                          content: const Text('¿Estás seguro de que deseas salir del panel de administración?'),
+                          content: const Text(
+                            '¿Estás seguro de que deseas salir del panel de administración?',
+                          ),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(ctx),
                               child: const Text('Cancelar'),
                             ),
                             FilledButton(
-                              style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: Colors.redAccent,
+                              ),
                               onPressed: () async {
                                 Navigator.pop(ctx);
                                 await FirebaseAuth.instance.signOut();
@@ -254,7 +303,9 @@ class AdminMoreScreen extends StatelessWidget {
                                 if (!context.mounted) return;
                                 Navigator.pushAndRemoveUntil(
                                   context,
-                                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                                  MaterialPageRoute(
+                                    builder: (_) => const LoginScreen(),
+                                  ),
                                   (route) => false,
                                 );
                               },
@@ -285,7 +336,10 @@ class AdminMoreScreen extends StatelessWidget {
   }) {
     return InkWell(
       borderRadius: BorderRadius.circular(14),
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => destination)),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => destination),
+      ),
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -297,7 +351,10 @@ class AdminMoreScreen extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(
+                color: iconBg,
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Icon(icon, color: iconColor, size: 22),
             ),
             const SizedBox(width: 14),
@@ -305,13 +362,27 @@ class AdminMoreScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.dark)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.dark,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(subtitle, style: const TextStyle(fontSize: 11, color: AppTheme.muted)),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 11, color: AppTheme.muted),
+                  ),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, size: 14, color: AppTheme.muted),
+            const Icon(
+              Icons.arrow_forward_ios,
+              size: 14,
+              color: AppTheme.muted,
+            ),
           ],
         ),
       ),
@@ -357,7 +428,11 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.add_circle_outline, size: 16, color: AppTheme.violet),
+                  Icon(
+                    Icons.add_circle_outline,
+                    size: 16,
+                    color: AppTheme.violet,
+                  ),
                   SizedBox(width: 4),
                   Text(
                     'Registrar',
@@ -376,7 +451,9 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
 
         // ─── Selector de pestañas: Equipo / En Pendiente ───
         StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance.collection('secretarios').snapshots(),
+          stream: FirebaseFirestore.instance
+              .collection('secretarios')
+              .snapshots(),
           builder: (context, snapshot) {
             int countPendientes = 0;
             int countActivos = 0;
@@ -385,10 +462,13 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
               for (var doc in snapshot.data!.docs) {
                 final d = doc.data() as Map<String, dynamic>;
                 final estado = d['estado'];
-                final estadoSol = d['estado_solicitud']?.toString().toLowerCase();
+                final estadoSol = d['estado_solicitud']
+                    ?.toString()
+                    .toLowerCase();
                 final aprobado = d['aprobado'];
 
-                if (estadoSol == 'pendiente' || (estado == false && aprobado != true)) {
+                if (estadoSol == 'pendiente' ||
+                    (estado == false && aprobado != true)) {
                   countPendientes++;
                 } else if (d['adminId'] == widget.admin.id) {
                   countActivos++;
@@ -410,10 +490,17 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         decoration: BoxDecoration(
-                          color: _tabSeleccionada == 0 ? Colors.white : Colors.transparent,
+                          color: _tabSeleccionada == 0
+                              ? Colors.white
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(10),
                           boxShadow: _tabSeleccionada == 0
-                              ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4)]
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 4,
+                                  ),
+                                ]
                               : null,
                         ),
                         child: Center(
@@ -422,7 +509,9 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: _tabSeleccionada == 0 ? AppTheme.violet : AppTheme.muted,
+                              color: _tabSeleccionada == 0
+                                  ? AppTheme.violet
+                                  : AppTheme.muted,
                             ),
                           ),
                         ),
@@ -435,10 +524,17 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         decoration: BoxDecoration(
-                          color: _tabSeleccionada == 1 ? Colors.white : Colors.transparent,
+                          color: _tabSeleccionada == 1
+                              ? Colors.white
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(10),
                           boxShadow: _tabSeleccionada == 1
-                              ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4)]
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 4,
+                                  ),
+                                ]
                               : null,
                         ),
                         child: Row(
@@ -449,13 +545,18 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
-                                color: _tabSeleccionada == 1 ? const Color(0xFFE67E22) : AppTheme.muted,
+                                color: _tabSeleccionada == 1
+                                    ? const Color(0xFFE67E22)
+                                    : AppTheme.muted,
                               ),
                             ),
                             if (countPendientes > 0) ...[
                               const SizedBox(width: 5),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 1,
+                                ),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFE67E22),
                                   borderRadius: BorderRadius.circular(10),
@@ -490,11 +591,20 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
               .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
-              return Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red, fontSize: 12));
+              return Text(
+                'Error: ${snapshot.error}',
+                style: const TextStyle(color: Colors.red, fontSize: 12),
+              );
             }
 
-            if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-              return const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()));
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                !snapshot.hasData) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: CircularProgressIndicator(),
+                ),
+              );
             }
 
             final allDocs = snapshot.data?.docs ?? [];
@@ -507,7 +617,9 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
               final estado = d['estado'];
               final estadoSol = d['estado_solicitud']?.toString().toLowerCase();
               final aprobado = d['aprobado'];
-              final esPendiente = estadoSol == 'pendiente' || (estado == false && aprobado != true);
+              final esPendiente =
+                  estadoSol == 'pendiente' ||
+                  (estado == false && aprobado != true);
 
               if (_tabSeleccionada == 1) {
                 return esPendiente;
@@ -520,7 +632,10 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
             if (filteredDocs.isEmpty) {
               return Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 22,
+                  horizontal: 16,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   border: Border.all(color: AppTheme.border),
@@ -529,7 +644,9 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                 child: Column(
                   children: [
                     Icon(
-                      _tabSeleccionada == 1 ? Icons.pending_actions_rounded : Icons.people_outline,
+                      _tabSeleccionada == 1
+                          ? Icons.pending_actions_rounded
+                          : Icons.people_outline,
                       size: 32,
                       color: AppTheme.muted,
                     ),
@@ -539,7 +656,10 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                           ? 'No hay solicitudes pendientes de aprobación'
                           : 'Aún no hay secretarios activos',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: AppTheme.muted, fontSize: 12),
+                      style: const TextStyle(
+                        color: AppTheme.muted,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
@@ -550,8 +670,6 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
               children: filteredDocs.map((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 final docId = doc.id;
-                final usuarioId = (data['usuarioId'] ?? docId).toString();
-                final fotoDirecta = data['fotoUrl']?.toString() ?? data['fotoBase64']?.toString();
                 final nombre = (data['nombre'] ?? 'Sin nombre').toString();
                 final telefono = (data['telefono'] ?? '').toString();
                 final correo = (data['correo'] ?? '').toString();
@@ -569,7 +687,8 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                       borderRadius: BorderRadius.circular(14),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFE67E22).withValues(alpha: 0.05),
+                          color: const Color(0xFFE67E22)
+                              .withValues(alpha: 0.05),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -580,21 +699,17 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                       children: [
                         Row(
                           children: [
-                            StreamBuilder<String?>(
-                              stream: PerfilFotoService.fotoStream(usuarioId),
-                              builder: (context, snap) {
-                                final foto = snap.data ?? fotoDirecta;
-                                return PerfilFotoService.avatarWidget(
-                                  context: context,
-                                  fotoData: foto,
-                                  iniciales: iniciales,
-                                  nombre: nombre,
-                                  subtitulo: 'Solicitud de empleo - $correo',
-                                  radius: 20,
-                                  backgroundColor: const Color(0xFFFFE0B2),
-                                  textColor: const Color(0xFFD35400),
-                                );
-                              },
+                            CircleAvatar(
+                              radius: 19,
+                              backgroundColor: const Color(0xFFFFE0B2),
+                              child: Text(
+                                iniciales,
+                                style: const TextStyle(
+                                  color: Color(0xFFD35400),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
@@ -611,13 +726,19 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                                   ),
                                   Text(
                                     correo,
-                                    style: const TextStyle(fontSize: 11, color: AppTheme.muted),
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppTheme.muted,
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFFF3E0),
                                 borderRadius: BorderRadius.circular(8),
@@ -638,20 +759,37 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                           Row(
                             children: [
                               if (telefono.isNotEmpty) ...[
-                                const Icon(Icons.phone_outlined, size: 12, color: AppTheme.muted),
+                                const Icon(
+                                  Icons.phone_outlined,
+                                  size: 12,
+                                  color: AppTheme.muted,
+                                ),
                                 const SizedBox(width: 4),
-                                Text(telefono, style: const TextStyle(fontSize: 11, color: AppTheme.muted)),
+                                Text(
+                                  telefono,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppTheme.muted,
+                                  ),
+                                ),
                                 const SizedBox(width: 12),
                               ],
                               if (direccion.isNotEmpty) ...[
-                                const Icon(Icons.location_on_outlined, size: 12, color: AppTheme.muted),
+                                const Icon(
+                                  Icons.location_on_outlined,
+                                  size: 12,
+                                  color: AppTheme.muted,
+                                ),
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
                                     direccion,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 11, color: AppTheme.muted),
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppTheme.muted,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -665,12 +803,22 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                               child: OutlinedButton(
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: Colors.redAccent,
-                                  side: const BorderSide(color: Color(0xFFFFCDD2)),
-                                  padding: const EdgeInsets.symmetric(vertical: 8),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  side: const BorderSide(
+                                    color: Color(0xFFFFCDD2),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
-                                onPressed: () => _rechazarSecretario(context, docId, data),
-                                child: const Text('Rechazar', style: TextStyle(fontSize: 12)),
+                                onPressed: () =>
+                                    _rechazarSecretario(context, docId, data),
+                                child: const Text(
+                                  'Rechazar',
+                                  style: TextStyle(fontSize: 12),
+                                ),
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -679,12 +827,23 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                                 style: FilledButton.styleFrom(
                                   backgroundColor: const Color(0xFF27AE60),
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 8),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
-                                onPressed: () => _aprobarSecretario(context, docId, data),
+                                onPressed: () =>
+                                    _aprobarSecretario(context, docId, data),
                                 icon: const Icon(Icons.check, size: 14),
-                                label: const Text('Aprobar', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                label: const Text(
+                                  'Aprobar',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
                             ),
                           ],
@@ -703,22 +862,21 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                    leading: StreamBuilder<String?>(
-                      stream: PerfilFotoService.fotoStream(usuarioId),
-                      builder: (context, snap) {
-                        final foto = snap.data ?? fotoDirecta;
-                        return PerfilFotoService.avatarWidget(
-                          context: context,
-                          fotoData: foto,
-                          iniciales: iniciales,
-                          nombre: nombre,
-                          subtitulo: 'Secretario/a - ${telefono.isNotEmpty ? telefono : correo}',
-                          radius: 20,
-                          backgroundColor: const Color(0xFFF0E9FC),
-                          textColor: AppTheme.violet,
-                        );
-                      },
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 2,
+                    ),
+                    leading: CircleAvatar(
+                      radius: 19,
+                      backgroundColor: const Color(0xFFF0E9FC),
+                      child: Text(
+                        iniciales,
+                        style: const TextStyle(
+                          color: AppTheme.violet,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
                     title: Text(
                       nombre,
@@ -730,10 +888,16 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                     ),
                     subtitle: Text(
                       telefono.isNotEmpty ? telefono : correo,
-                      style: const TextStyle(fontSize: 11, color: AppTheme.muted),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.muted,
+                      ),
                     ),
                     trailing: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFE8F5E9),
                         borderRadius: BorderRadius.circular(20),
@@ -765,12 +929,20 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
   }
 
   String _getIniciales(String nombre) {
-    final partes = nombre.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final partes = nombre
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (partes.isEmpty) return '?';
     return partes.take(2).map((p) => p[0]).join().toUpperCase();
   }
 
-  Future<void> _aprobarSecretario(BuildContext context, String docId, Map<String, dynamic> data) async {
+  Future<void> _aprobarSecretario(
+    BuildContext context,
+    String docId,
+    Map<String, dynamic> data,
+  ) async {
     try {
       final db = FirebaseFirestore.instance;
       final lote = db.batch();
@@ -799,7 +971,11 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
         // Buscar por correo en 'usuarios' si el docId no era el UID
         final correo = data['correo'];
         if (correo != null) {
-          final query = await db.collection('usuarios').where('correo', isEqualTo: correo).limit(1).get();
+          final query = await db
+              .collection('usuarios')
+              .where('correo', isEqualTo: correo)
+              .limit(1)
+              .get();
           if (query.docs.isNotEmpty) {
             lote.update(query.docs.first.reference, {
               'estado': 'activo',
@@ -816,26 +992,38 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${data['nombre'] ?? 'Secretario'} ha sido aprobado con éxito.'),
+            content: Text(
+              '${data['nombre'] ?? 'Secretario'} ha sido aprobado con éxito.',
+            ),
             backgroundColor: const Color(0xFF27AE60),
           ),
         );
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al aprobar: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error al aprobar: $e')));
       }
     }
   }
 
-  Future<void> _rechazarSecretario(BuildContext context, String docId, Map<String, dynamic> data) async {
+  Future<void> _rechazarSecretario(
+    BuildContext context,
+    String docId,
+    Map<String, dynamic> data,
+  ) async {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Rechazar solicitud'),
-        content: Text('¿Deseas rechazar la cuenta de ${data['nombre'] ?? 'este usuario'}?'),
+        content: Text(
+          '¿Deseas rechazar la cuenta de ${data['nombre'] ?? 'este usuario'}?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () => Navigator.pop(ctx, true),
@@ -856,13 +1044,14 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
       });
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Solicitud rechazada.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Solicitud rechazada.')));
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -937,7 +1126,11 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                     child: const Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.people_outline, color: AppTheme.violet, size: 20),
+                        Icon(
+                          Icons.people_outline,
+                          color: AppTheme.violet,
+                          size: 20,
+                        ),
                         SizedBox(width: 8),
                         Expanded(
                           child: Column(
@@ -954,7 +1147,10 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                               SizedBox(height: 2),
                               Text(
                                 'Al registrarlo directamente desde aquí, el secretario quedará Activo y aprobado de inmediato.',
-                                style: TextStyle(fontSize: 11, color: AppTheme.muted),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppTheme.muted,
+                                ),
                               ),
                             ],
                           ),
@@ -965,7 +1161,10 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                   const SizedBox(height: 16),
 
                   // Campos del formulario
-                  const Text('Nombre completo', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  const Text(
+                    'Nombre completo',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: nombreController,
@@ -978,13 +1177,21 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Ingresa el nombre' : null,
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Ingresa el nombre'
+                        : null,
                   ),
                   const SizedBox(height: 14),
 
-                  const Text('Número de teléfono', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  const Text(
+                    'Número de teléfono',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: telefonoController,
@@ -997,12 +1204,18 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 14),
 
-                  const Text('Dirección', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  const Text(
+                    'Dirección',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: direccionController,
@@ -1014,12 +1227,18 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 14),
 
-                  const Text('Correo para iniciar sesión', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  const Text(
+                    'Correo para iniciar sesión',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: correoController,
@@ -1032,13 +1251,21 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                     ),
-                    validator: (v) => (v == null || !v.contains('@')) ? 'Ingresa un correo válido' : null,
+                    validator: (v) => (v == null || !v.contains('@'))
+                        ? 'Ingresa un correo válido'
+                        : null,
                   ),
                   const SizedBox(height: 14),
 
-                  const Text('Contraseña temporal', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  const Text(
+                    'Contraseña temporal',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: contrasenaController,
@@ -1051,7 +1278,10 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                     ),
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) {
@@ -1082,38 +1312,121 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
                         ),
                       ),
                       onPressed: () async {
-                        if (formKey.currentState!.validate()) {
-                          try {
-                            await FirebaseFirestore.instance
-                                .collection('secretarios')
-                                .add({
-                              'nombre': nombreController.text.trim(),
-                              'telefono': telefonoController.text.trim(),
-                              'correo': correoController.text.trim(),
-                              'direccion': direccionController.text.trim(),
+                        if (!formKey.currentState!.validate()) return;
+
+                        FirebaseApp? appSecundaria;
+                        UserCredential? credencial;
+                        var perfilGuardado = false;
+                        try {
+                          appSecundaria = await Firebase.initializeApp(
+                            name:
+                                'registro-secretario-${DateTime.now().microsecondsSinceEpoch}',
+                            options: DefaultFirebaseOptions.currentPlatform,
+                          );
+                          final authSecundario = FirebaseAuth.instanceFor(
+                            app: appSecundaria,
+                          );
+                          credencial = await authSecundario
+                              .createUserWithEmailAndPassword(
+                                email: correoController.text.trim(),
+                                password: contrasenaController.text,
+                              );
+                          final usuarioCreado = credencial.user;
+                          if (usuarioCreado == null) {
+                            throw Exception(
+                              'Firebase no devolvió la cuenta creada.',
+                            );
+                          }
+
+                          final db = FirebaseFirestore.instance;
+                          final lote = db.batch();
+                          final correo = correoController.text
+                              .trim()
+                              .toLowerCase();
+                          final nombre = nombreController.text.trim();
+                          final telefono = telefonoController.text.trim();
+                          final direccion = direccionController.text.trim();
+                          final adminId = widget.admin.id;
+                          final fecha = FieldValue.serverTimestamp();
+
+                          lote.set(
+                            db.collection('secretarios').doc(usuarioCreado.uid),
+                            {
+                              'uid': usuarioCreado.uid,
+                              'nombre': nombre,
+                              'telefono': telefono,
+                              'correo': correo,
+                              'direccion': direccion,
+                              'rol': 'secretaria',
                               'estado': true,
                               'aprobado': true,
                               'estado_solicitud': 'aprobado',
-                              'fecha_registro': FieldValue.serverTimestamp(),
-                              'adminId': widget.admin.id,
-                            });
-                            if (bottomSheetContext.mounted) {
-                              Navigator.pop(bottomSheetContext);
-                            }
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Secretario registrado y activado con éxito'),
-                                  backgroundColor: AppTheme.green,
+                              'fecha_registro': fecha,
+                              'fecha_aprobacion': fecha,
+                              'adminId': adminId,
+                              'metodo_registro': 'administrador',
+                            },
+                          );
+                          lote.set(
+                            db.collection('usuarios').doc(usuarioCreado.uid),
+                            {
+                              'uid': usuarioCreado.uid,
+                              'nombre': nombre,
+                              'telefono': telefono,
+                              'correo': correo,
+                              'direccion': direccion,
+                              'rol': 'secretaria',
+                              'estado': 'activo',
+                              'aprobado': true,
+                              'fecha_registro': fecha,
+                              'fecha_aprobacion': fecha,
+                              'adminId': adminId,
+                              'metodo_registro': 'administrador',
+                            },
+                          );
+                          await lote.commit();
+                          perfilGuardado = true;
+
+                          await authSecundario.signOut();
+                          if (bottomSheetContext.mounted) {
+                            Navigator.pop(bottomSheetContext);
+                          }
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Cuenta de secretario creada y vinculada a tu tienda.',
                                 ),
-                              );
-                            }
-                          } catch (e) {
-                            if (bottomSheetContext.mounted) {
-                              ScaffoldMessenger.of(bottomSheetContext).showSnackBar(
-                                SnackBar(content: Text('Error: $e')),
-                              );
-                            }
+                                backgroundColor: AppTheme.green,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          // Si Firestore falla después de crear la cuenta, eliminarla
+                          // para evitar dejar una cuenta sin perfil de secretario.
+                          if (!perfilGuardado &&
+                              appSecundaria != null &&
+                              credencial?.user != null) {
+                            try {
+                              await FirebaseAuth.instanceFor(app: appSecundaria)
+                                  .currentUser
+                                  ?.delete();
+                            } catch (_) {}
+                          }
+                          final mensaje =
+                              e is FirebaseAuthException &&
+                                  e.code == 'email-already-in-use'
+                              ? 'Ese correo ya tiene una cuenta. Usa otro correo.'
+                              : 'No se pudo crear la cuenta del secretario: $e';
+                          if (bottomSheetContext.mounted) {
+                            ScaffoldMessenger.of(bottomSheetContext)
+                                .showSnackBar(SnackBar(content: Text(mensaje)));
+                          }
+                        } finally {
+                          if (appSecundaria != null) {
+                            try {
+                              await appSecundaria.delete();
+                            } catch (_) {}
                           }
                         }
                       },

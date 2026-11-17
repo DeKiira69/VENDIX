@@ -6,27 +6,83 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../services/client_service.dart';
 import '../../services/perfil_foto_service.dart';
-import 'client_profile_screen.dart';
+import '../../widgets/store_location_map.dart';
 
 class ClientHomeScreen extends StatelessWidget {
-  final VoidCallback? onIrAPerfil;
-
-  const ClientHomeScreen({super.key, this.onIrAPerfil});
-
-  void _abrirPerfil(BuildContext context) {
-    if (onIrAPerfil != null) {
-      onIrAPerfil!();
-    } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const ClientProfileScreen()),
-      );
-    }
-  }
+  const ClientHomeScreen({super.key});
 
   static const Color violeta = Color(0xFF7950C2);
   static const Color oscuro = Color(0xFF241B35);
   static const Color rosa = Color(0xFFE9A6C8);
+
+  void _mostrarMapaTienda(
+    BuildContext context, {
+    required String nombre,
+    required String direccion,
+    required double? latitud,
+    required double? longitud,
+  }) {
+    if (latitud == null || longitud == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'El emprendedor aún no ha guardado la ubicación de su tienda.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.72,
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              nombre.isEmpty ? 'Ubicación de la tienda' : nombre,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: oscuro,
+              ),
+            ),
+            if (direccion.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(direccion, style: const TextStyle(color: Colors.black54)),
+            ],
+            const SizedBox(height: 16),
+            Expanded(
+              child: StoreLocationPreview(
+                latitude: latitud,
+                longitude: longitud,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,19 +135,15 @@ class ClientHomeScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    InkWell(
-                      onTap: () => _abrirPerfil(context),
-                      borderRadius: BorderRadius.circular(22),
-                      child: CircleAvatar(
-                        backgroundColor: rosa,
-                        child: Text(
-                          saludoAuth.isNotEmpty
-                              ? saludoAuth[0].toUpperCase()
-                              : 'C',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
+                    CircleAvatar(
+                      backgroundColor: rosa,
+                      child: Text(
+                        saludoAuth.isNotEmpty
+                            ? saludoAuth[0].toUpperCase()
+                            : 'C',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
@@ -249,48 +301,40 @@ class ClientHomeScreen extends StatelessWidget {
                                   }
                                 }
 
-                                return InkWell(
-                                  onTap: () => _abrirPerfil(context),
-                                  borderRadius: BorderRadius.circular(24),
-                                  child: CircleAvatar(
-                                    radius: 22,
-                                    backgroundColor: rosa,
-                                    backgroundImage: imageProvider,
-                                    child: imageProvider == null
-                                        ? Text(
-                                            nombres
-                                                .map(
-                                                  (n) => n.isNotEmpty ? n[0] : '',
-                                                )
-                                                .take(2)
-                                                .join()
-                                                .toUpperCase(),
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          )
-                                        : null,
-                                  ),
+                                return CircleAvatar(
+                                  radius: 22,
+                                  backgroundColor: rosa,
+                                  backgroundImage: imageProvider,
+                                  child: imageProvider == null
+                                      ? Text(
+                                          nombres
+                                              .map(
+                                                (n) => n.isNotEmpty ? n[0] : '',
+                                              )
+                                              .take(2)
+                                              .join()
+                                              .toUpperCase(),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        )
+                                      : null,
                                 );
                               }
 
-                              return InkWell(
-                                onTap: () => _abrirPerfil(context),
-                                borderRadius: BorderRadius.circular(24),
-                                child: CircleAvatar(
-                                  radius: 22,
-                                  backgroundColor: rosa,
-                                  child: Text(
-                                    nombres
-                                        .map((n) => n.isNotEmpty ? n[0] : '')
-                                        .take(2)
-                                        .join()
-                                        .toUpperCase(),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                              return CircleAvatar(
+                                radius: 22,
+                                backgroundColor: rosa,
+                                child: Text(
+                                  nombres
+                                      .map((n) => n.isNotEmpty ? n[0] : '')
+                                      .take(2)
+                                      .join()
+                                      .toUpperCase(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               );
@@ -505,52 +549,121 @@ class ClientHomeScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 16),
 
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: _tarjeta(),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.storefront_outlined,
-                              color: violeta,
-                              size: 36,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'VISÍTANOS',
-                                    style: TextStyle(
-                                      color: violeta,
-                                      fontSize: 10,
-                                      letterSpacing: 1,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                      StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                        stream: adminId.isEmpty
+                            ? null
+                            : FirebaseFirestore.instance
+                                  .collection('Administradores')
+                                  .doc(adminId)
+                                  .snapshots(),
+                        builder: (context, tiendaSnapshot) {
+                          final tienda = tiendaSnapshot.data?.data() ?? {};
+                          final nombreTienda = tienda['nombreEmprendimiento']
+                              ?.toString()
+                              .trim();
+                          final direccionTienda =
+                              tienda['direccionTienda']?.toString().trim() ??
+                              '';
+                          final latitud = (tienda['latitudTienda'] as num?)
+                              ?.toDouble();
+                          final longitud = (tienda['longitudTienda'] as num?)
+                              ?.toDouble();
+                          final tieneUbicacion =
+                              latitud != null && longitud != null;
+
+                          return Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: _tarjeta(),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  onTap: () => _mostrarMapaTienda(
+                                    context,
+                                    nombre: nombreTienda ?? '',
+                                    direccion: direccionTienda,
+                                    latitud: latitud,
+                                    longitud: longitud,
                                   ),
-                                  const SizedBox(height: 5),
-                                  const Text(
-                                    'Moda Luna Showroom',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: oscuro,
-                                    ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.storefront_outlined,
+                                        color: violeta,
+                                        size: 36,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            const Text(
+                                              'VISÍTANOS',
+                                              style: TextStyle(
+                                                color: violeta,
+                                                fontSize: 10,
+                                                letterSpacing: 1,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 5),
+                                            Text(
+                                              nombreTienda?.isNotEmpty == true
+                                                  ? nombreTienda!
+                                                  : 'Tienda del emprendedor',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: oscuro,
+                                              ),
+                                            ),
+                                            Text(
+                                              direccionTienda.isNotEmpty
+                                                  ? direccionTienda
+                                                  : 'Dirección pendiente',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Icon(
+                                        Icons.map_outlined,
+                                        color: violeta,
+                                        size: 18,
+                                      ),
+                                    ],
                                   ),
-                                  Text(
-                                    (cliente['direccionTienda'] ??
-                                            'Dirección de la tienda pendiente')
-                                        .toString(),
-                                    style: const TextStyle(
+                                ),
+                                if (tieneUbicacion) ...[
+                                  const SizedBox(height: 14),
+                                  StoreLocationPreview(
+                                    latitude: latitud,
+                                    longitude: longitud,
+                                    height: 180,
+                                  ),
+                                ] else if (!tiendaSnapshot.hasData &&
+                                    adminId.isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  const LinearProgressIndicator(minHeight: 2),
+                                ] else ...[
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'La tienda aún no ha compartido su ubicación.',
+                                    style: TextStyle(
                                       fontSize: 11,
                                       color: Colors.grey,
                                     ),
                                   ),
                                 ],
-                              ),
+                              ],
                             ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
                       const SizedBox(height: 22),
 
@@ -720,6 +833,93 @@ class _SinFicha extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        future: FirebaseFirestore.instance
+            .collection('secretarios')
+            .doc(uid)
+            .get(),
+        builder: (context, secretarioSnapshot) {
+          final adminId =
+              secretarioSnapshot.data?.data()?['adminId']?.toString() ?? '';
+          if (adminId.isEmpty) return _mensajeSinFicha();
+
+          return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection('Administradores')
+                .doc(adminId)
+                .snapshots(),
+            builder: (context, adminSnapshot) {
+              final tienda = adminSnapshot.data?.data() ?? {};
+              final latitud = (tienda['latitudTienda'] as num?)?.toDouble();
+              final longitud = (tienda['longitudTienda'] as num?)?.toDouble();
+              final tieneUbicacion = latitud != null && longitud != null;
+
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(18, 20, 18, 24),
+                children: [
+                  if (tieneUbicacion)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: ClientHomeScreen._tarjeta(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'TIENDA DEL EMPRENDEDOR',
+                            style: TextStyle(
+                              color: ClientHomeScreen.violeta,
+                              fontSize: 10,
+                              letterSpacing: 1,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            tienda['nombreEmprendimiento']?.toString() ??
+                                'Tienda',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          if ((tienda['direccionTienda']?.toString() ?? '')
+                              .isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                top: 3,
+                                bottom: 12,
+                              ),
+                              child: Text(
+                                tienda['direccionTienda'].toString(),
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            )
+                          else
+                            const SizedBox(height: 12),
+                          StoreLocationPreview(
+                            latitude: latitud,
+                            longitude: longitud,
+                            height: 190,
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 18),
+                  _mensajeSinFicha(),
+                ],
+              );
+            },
+          );
+        },
+      );
+    }
+
+    return _mensajeSinFicha();
+  }
+
+  Widget _mensajeSinFicha() {
     return const Center(
       child: Padding(
         padding: EdgeInsets.all(24),
