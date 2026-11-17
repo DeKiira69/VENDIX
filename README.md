@@ -17,6 +17,12 @@
   <img src="https://img.shields.io/badge/Cloudinary-Image_Storage-3448C5?style=for-the-badge&logo=cloudinary&logoColor=white" alt="Cloudinary" />
 </p>
 
+<p align="center">
+  <a href="https://github.com/DeKiira69/VENDIX/releases/latest/download/VENDIX_release.apk">
+    <img src="https://img.shields.io/badge/📲_Descargar_APK-v1.0.0-00C853?style=for-the-badge&logo=android&logoColor=white" alt="Descargar APK" />
+  </a>
+</p>
+
 ---
 
 ## 📌 Acerca de VENDIX
