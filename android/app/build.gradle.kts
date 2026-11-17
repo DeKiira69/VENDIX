@@ -32,29 +32,11 @@ android {
         versionName = flutter.versionName
     }
 
-    val keystoreFile = file("vendix_key.jks")
-    signingConfigs {
-        create("release") {
-            if (keystoreFile.exists()) {
-                keyAlias = "vendix_key"
-                keyPassword = "vendix2026"
-                storeFile = keystoreFile
-                storePassword = "vendix2026"
-            } else {
-                val debugConfig = signingConfigs.getByName("debug")
-                keyAlias = debugConfig.keyAlias
-                keyPassword = debugConfig.keyPassword
-                storeFile = debugConfig.storeFile
-                storePassword = debugConfig.storePassword
-            }
-        }
-    }
-
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 }
