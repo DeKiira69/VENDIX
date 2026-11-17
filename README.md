@@ -49,9 +49,11 @@ Resuelve el caos tradicional de tomar pedidos a mano en libretas o mensajes de c
 * **Estadísticas en Directo:** Gráficas financieras y balance consolidado del día.
 
 ### 🛍️ 3. Módulo Cliente
-* **Registro Obligatorio con Código:** Para registrarse, la clienta debe ingresar el código emitido por el secretario en la transmisión, garantizando que quede vinculada automáticamente a la tienda del emprendedor.
+* **Hub de Bienvenida Interactivo:** Al registrarse o iniciar sesión sin un live activo, el usuario accede a un portal moderno donde puede elegir entre **asociarse como comprador** ingresando el código del live, o **postularse directamente como secretario** para trabajar en una tienda.
+* **Seguimiento de Empleos:** Monitoreo en tiempo real de solicitudes laborales con acceso directo al panel de secretario al ser aceptado.
 * **Identidad de Tienda:** Visualización directa de la información del emprendedor (nombre de la tienda, teléfono y contacto).
 * **Ficha Financiera:** Visualización clara de su saldo pendiente, prendas adquiridas y abonos recibidos.
+* **Asistente Inteligente Gemini AI:** Chatbot integrado con contexto RAG enriquecido que responde sobre la tienda, propietario, dirección y catálogo de prendas disponibles en tiempo real.
 * **Autenticación Dual:** Acceso seguro con correo y contraseña o a través de **Google Sign-In**.
 * **Foto de Perfil:** Carga y optimización de avatar en la nube mediante Cloudinary.
 
