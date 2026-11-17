@@ -30,6 +30,9 @@ class GoogleAuthService {
     if (str.contains('popup-blocked') || str.contains('blocked by the browser')) {
       return 'El navegador bloqueó la ventana emergente de Google. Si usas Brave o un bloqueador, desactiva el escudo (Brave Shields) o permite las ventanas emergentes en localhost.';
     }
+    if (str.contains('16') || str.contains('Account reauth failed') || str.contains('DEVELOPER_ERROR') || str.contains('[10]')) {
+      return 'Error [16] de Google Play Services: La huella digital SHA-1 de este APK no está registrada en Firebase Console. Registra la huella SHA-1 en la configuración de Firebase.';
+    }
     return 'Error al acceder con Google: $e';
   }
 
