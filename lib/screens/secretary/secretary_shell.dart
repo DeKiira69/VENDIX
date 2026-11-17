@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -6,10 +8,20 @@ import 'quick_sales_screen.dart';
 import 'clients_screen.dart';
 import 'statistics_screen.dart';
 import 'more_screen.dart';
+import '../../services/client_service.dart';
 import '../../theme/app_theme.dart';
 
 class SecretaryShell extends StatefulWidget {
-  const SecretaryShell({super.key});
+  final String? adminIdInicial;
+  final String? nombreEmprendimientoInicial;
+  final String? adminNombreInicial;
+
+  const SecretaryShell({
+    super.key,
+    this.adminIdInicial,
+    this.nombreEmprendimientoInicial,
+    this.adminNombreInicial,
+  });
 
   @override
   State<SecretaryShell> createState() => _SecretaryShellState();
@@ -18,6 +30,58 @@ class SecretaryShell extends StatefulWidget {
 class _SecretaryShellState extends State<SecretaryShell> {
   int _indiceActual = 0;
   DateTime? _ultimoToqueAtras;
+
+  @override
+  void initState() {
+    super.initState();
+    _inicializarSesionEmprendimiento();
+  }
+
+  Future<void> _inicializarSesionEmprendimiento() async {
+    if (widget.adminIdInicial != null && widget.adminIdInicial!.isNotEmpty) {
+      ClientService.setActiveSecretarySession(
+        adminId: widget.adminIdInicial!,
+        nombreEmprendimiento: widget.nombreEmprendimientoInicial,
+        adminNombre: widget.adminNombreInicial,
+      );
+      if (mounted) setState(() {});
+      return;
+    }
+
+    if (ClientService.activeSecretaryAdminId != null &&
+        ClientService.activeSecretaryAdminId!.isNotEmpty) {
+      return;
+    }
+
+    // Resolver el primer empleo activo de secretarios en Firestore
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('secretarios')
+          .where('clienteId', isEqualTo: uid)
+          .where('aprobado', isEqualTo: true)
+          .limit(1)
+          .get();
+
+      if (snap.docs.isNotEmpty) {
+        final data = snap.docs.first.data();
+        final adminId = data['adminId']?.toString() ?? '';
+        final emp = data['nombreEmprendimiento']?.toString();
+        final adminNom = data['adminNombre']?.toString();
+
+        if (adminId.isNotEmpty) {
+          ClientService.setActiveSecretarySession(
+            adminId: adminId,
+            nombreEmprendimiento: emp,
+            adminNombre: adminNom,
+          );
+          if (mounted) setState(() {});
+        }
+      }
+    } catch (_) {}
+  }
 
   void cambiarPantalla(int indice) {
     if (indice < 0 || indice > 4) return;

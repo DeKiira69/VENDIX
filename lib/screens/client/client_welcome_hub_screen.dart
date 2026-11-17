@@ -1,0 +1,623 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+
+import '../../services/client_service.dart';
+import '../../services/perfil_foto_service.dart';
+import '../../theme/app_theme.dart';
+import '../auth/login_screen.dart';
+import '../secretary/secretary_shell.dart';
+import 'enter_code_screen.dart';
+import 'solicitud_empleo_screen.dart';
+
+/// Pantalla de bienvenida / selección inicial para el rol Cliente.
+///
+/// Permite al usuario elegir libremente entre:
+/// 1. "Asociarse a un emprendimiento" (ingresar código de Live como comprador).
+/// 2. "Solicitar empleo" (postularse como secretario a cualquier tienda sin estar obligado a comprar).
+class ClientWelcomeHubScreen extends StatefulWidget {
+  const ClientWelcomeHubScreen({super.key});
+
+  @override
+  State<ClientWelcomeHubScreen> createState() => _ClientWelcomeHubScreenState();
+}
+
+class _ClientWelcomeHubScreenState extends State<ClientWelcomeHubScreen> {
+  static const Color violeta = Color(0xFF6C4AB6);
+  static const Color violetaOscuro = Color(0xFF4D2C91);
+  static const Color rosa = Color(0xFFE9A6C8);
+  static const Color fondo = Color(0xFFF8F6FA);
+
+  String _saludo() {
+    final hora = DateTime.now().hour;
+    if (hora < 12) return 'Buenos días';
+    if (hora < 19) return 'Buenas tardes';
+    return 'Buenas noches';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final usuario = FirebaseAuth.instance.currentUser;
+    final usuarioId = usuario?.uid ?? '';
+
+    return Scaffold(
+      backgroundColor: fondo,
+      body: SafeArea(
+        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('usuarios')
+              .doc(usuarioId)
+              .snapshots(),
+          builder: (context, snapshot) {
+            final datos = snapshot.data?.data() ?? {};
+            final nombre = datos['nombre']?.toString().trim() ?? '';
+            final apellido = datos['apellido']?.toString().trim() ?? '';
+            final nombreCompleto = [nombre, apellido]
+                .where((s) => s.isNotEmpty)
+                .join(' ');
+            final nombreMostrar = nombreCompleto.isNotEmpty
+                ? nombreCompleto
+                : (usuario?.displayName ?? 'Cliente');
+
+            final inicial = nombreMostrar.isNotEmpty
+                ? nombreMostrar[0].toUpperCase()
+                : 'C';
+
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
+              children: [
+                // ─── Header superior con perfil y salir ───
+                Row(
+                  children: [
+                    StreamBuilder<String?>(
+                      stream: PerfilFotoService.fotoStream(usuarioId),
+                      builder: (context, fotoSnap) {
+                        final foto = fotoSnap.data;
+                        if (foto != null && foto.isNotEmpty) {
+                          return CircleAvatar(
+                            radius: 24,
+                            backgroundColor: violeta,
+                            backgroundImage: NetworkImage(foto),
+                          );
+                        }
+                        return CircleAvatar(
+                          radius: 24,
+                          backgroundColor: rosa,
+                          child: Text(
+                            inicial,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'BIENVENIDO A VENDIX',
+                            style: TextStyle(
+                              color: violeta,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${_saludo()}, $nombreMostrar',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.dark,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Cerrar sesión',
+                      icon: const Icon(Icons.logout_rounded, color: Colors.grey),
+                      onPressed: () => _confirmarCerrarSesion(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+
+                // ─── Banner Hero interactivo ───
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [violetaOscuro, violeta, Color(0xFF9B59B6)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: violeta.withValues(alpha: 0.25),
+                        blurRadius: 16,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.auto_awesome,
+                                  color: Colors.amberAccent,
+                                  size: 14,
+                                ),
+                                SizedBox(width: 5),
+                                Text(
+                                  'TU ESPACIO COMERCIAL',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        '¿Cómo deseas participar hoy?',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 21,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Elige si deseas ingresar como comprador a una tienda o postularte para trabajar como secretario en transmisiones en vivo.',
+                        style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.3),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // ─── Título de Opciones ───
+                const Text(
+                  'Selecciona una opción',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.dark,
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // ─── Opción 1: Asociarse a un emprendimiento (Comprador) ───
+                _HubCard(
+                  titulo: 'Asociarse a un emprendimiento',
+                  subtitulo:
+                      'Ingresa el código proporcionado por el vendedor o secretario durante el live para comprar y consultar tus prendas.',
+                  etiqueta: 'MODO COMPRADOR',
+                  etiquetaColor: const Color(0xFFE91E63),
+                  icono: Icons.shopping_bag_outlined,
+                  colorFondoIcono: const Color(0xFFFDECEF),
+                  colorIcono: const Color(0xFFE91E63),
+                  botonTexto: 'Ingresar código del Live',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const EnterCodeScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 14),
+
+                // ─── Opción 2: Solicitar empleo (Secretario) ───
+                _HubCard(
+                  titulo: 'Solicitar empleo',
+                  subtitulo:
+                      'Explora todos los emprendimientos registrados y postúlate para ser secretario y operador de ventas en transmisiones en vivo.',
+                  etiqueta: 'OPORTUNIDAD LABORAL',
+                  etiquetaColor: violeta,
+                  icono: Icons.work_outline_rounded,
+                  colorFondoIcono: const Color(0xFFF0E9FC),
+                  colorIcono: violeta,
+                  botonTexto: 'Ver tiendas y postular',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SolicitudEmpleoScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+
+                // ─── Sección de estado de solicitudes / empleos existentes ───
+                _MisSolicitudesSection(usuarioId: usuarioId),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmarCerrarSesion(BuildContext context) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Cerrar sesión'),
+        content: const Text('¿Estás seguro de que deseas salir de VENDIX?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Salir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true && context.mounted) {
+      await FirebaseAuth.instance.signOut();
+      ClientService.limpiarCache();
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Widget de Tarjeta Principal del Hub
+// ─────────────────────────────────────────────────────────────
+class _HubCard extends StatelessWidget {
+  final String titulo;
+  final String subtitulo;
+  final String etiqueta;
+  final Color etiquetaColor;
+  final IconData icono;
+  final Color colorFondoIcono;
+  final Color colorIcono;
+  final String botonTexto;
+  final VoidCallback onTap;
+
+  const _HubCard({
+    required this.titulo,
+    required this.subtitulo,
+    required this.etiqueta,
+    required this.etiquetaColor,
+    required this.icono,
+    required this.colorFondoIcono,
+    required this.colorIcono,
+    required this.botonTexto,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: colorFondoIcono,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(icono, color: colorIcono, size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: etiquetaColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              etiqueta,
+                              style: TextStyle(
+                                color: etiquetaColor,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            titulo,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.dark,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 16,
+                      color: AppTheme.muted,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  subtitulo,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.muted,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      botonTexto,
+                      style: TextStyle(
+                        color: colorIcono,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(Icons.chevron_right_rounded, size: 18, color: colorIcono),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Sección para monitorear solicitudes de empleo enviadas
+// ─────────────────────────────────────────────────────────────
+class _MisSolicitudesSection extends StatelessWidget {
+  final String usuarioId;
+
+  const _MisSolicitudesSection({required this.usuarioId});
+
+  @override
+  Widget build(BuildContext context) {
+    if (usuarioId.isEmpty) return const SizedBox.shrink();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('secretarios')
+          .where('clienteId', isEqualTo: usuarioId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty) return const SizedBox.shrink();
+
+        final aprobados = docs.where((d) {
+          final data = d.data() as Map<String, dynamic>;
+          final est = data['estado_solicitud']?.toString().toLowerCase();
+          return (data['aprobado'] == true || data['estado'] == true) &&
+              est != 'renunciado' &&
+              est != 'rechazado';
+        }).toList();
+
+        final pendientes = docs.where((d) {
+          final data = d.data() as Map<String, dynamic>;
+          final est = data['estado_solicitud']?.toString().toLowerCase();
+          return est == 'pendiente' || (data['aprobado'] != true && est != 'rechazado' && est != 'renunciado');
+        }).toList();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Tus Solicitudes de Empleo',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.dark,
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // Si tiene empleos aprobados, permitir entrar directo al modo secretario
+            if (aprobados.isNotEmpty) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F8F5),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFA3E4D7)),
+                ),
+                child: Row(
+                  children: [
+                    const CircleAvatar(
+                      backgroundColor: Color(0xFF27AE60),
+                      radius: 18,
+                      child: Icon(Icons.check, color: Colors.white, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '¡Has sido contratado!',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1E8449),
+                            ),
+                          ),
+                          Text(
+                            'Tienes ${aprobados.length} empleo(s) activo(s) como secretario.',
+                            style: const TextStyle(fontSize: 11, color: Color(0xFF145A32)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF27AE60),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      onPressed: () {
+                        final primerEmpleo = aprobados.first.data() as Map<String, dynamic>;
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (_) => SecretaryShell(
+                              adminIdInicial: primerEmpleo['adminId']?.toString(),
+                              nombreEmprendimientoInicial: primerEmpleo['nombreEmprendimiento']?.toString(),
+                              adminNombreInicial: primerEmpleo['adminNombre']?.toString(),
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Text('Entrar', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            // Lista de solicitudes en revisión pendiente
+            ...pendientes.map((d) {
+              final data = d.data() as Map<String, dynamic>;
+              final tienda = data['nombreEmprendimiento']?.toString() ??
+                  data['adminNombre']?.toString() ??
+                  'Emprendimiento';
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppTheme.border),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.schedule_rounded,
+                      size: 18,
+                      color: Color(0xFFE67E22),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            tienda,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.dark,
+                            ),
+                          ),
+                          const Text(
+                            'Solicitud en revisión por el emprendedor',
+                            style: TextStyle(fontSize: 10, color: AppTheme.muted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF3E0),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'En Pendiente',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFE67E22),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        );
+      },
+    );
+  }
+}

@@ -145,10 +145,31 @@ class _EnterCodeScreenState extends State<EnterCodeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final puedeVolver = Navigator.canPop(context);
+
     return PopScope(
-      canPop: false, // El usuario no puede ir "atrás" para saltarse esta pantalla
+      canPop: puedeVolver,
       child: Scaffold(
         backgroundColor: const Color(0xFFFAF8FC),
+        appBar: puedeVolver
+            ? AppBar(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF241B35)),
+                  onPressed: () => Navigator.maybePop(context),
+                  tooltip: 'Volver al menú principal',
+                ),
+                title: const Text(
+                  'Asociarse a tienda',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF241B35),
+                  ),
+                ),
+              )
+            : null,
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(

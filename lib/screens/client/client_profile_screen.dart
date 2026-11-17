@@ -199,8 +199,15 @@ class ClientProfileScreen extends StatelessWidget {
                         ),
                         onPressed: () {
                           if (empleos.length == 1) {
+                            final data = empleos.first.data() as Map<String, dynamic>;
                             Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(builder: (_) => const SecretaryShell()),
+                              MaterialPageRoute(
+                                builder: (_) => SecretaryShell(
+                                  adminIdInicial: data['adminId']?.toString(),
+                                  nombreEmprendimientoInicial: data['nombreEmprendimiento']?.toString(),
+                                  adminNombreInicial: data['adminNombre']?.toString(),
+                                ),
+                              ),
                             );
                           } else {
                             showModalBottomSheet(
@@ -230,18 +237,30 @@ class ClientProfileScreen extends StatelessWidget {
                                         final emp = data['nombreEmprendimiento']?.toString() ??
                                             data['adminNombre']?.toString() ??
                                             'Emprendedor';
+                                        final adminNom = data['adminNombre']?.toString() ?? '';
+                                        final codigo = data['codigoLive']?.toString() ?? '';
                                         return ListTile(
                                           leading: const CircleAvatar(
                                             backgroundColor: Color(0xFFF0E8FC),
                                             child: Icon(Icons.storefront_outlined, color: violeta),
                                           ),
                                           title: Text(emp, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                          subtitle: Text('Código: '),
+                                          subtitle: Text(
+                                            adminNom.isNotEmpty
+                                                ? 'Emprendedor: $adminNom'
+                                                : (codigo.isNotEmpty ? 'Código: $codigo' : 'Operador de ventas'),
+                                          ),
                                           trailing: const Icon(Icons.arrow_forward_ios, size: 14),
                                           onTap: () {
                                             Navigator.pop(sheetCtx);
                                             Navigator.of(context).pushReplacement(
-                                              MaterialPageRoute(builder: (_) => const SecretaryShell()),
+                                              MaterialPageRoute(
+                                                builder: (_) => SecretaryShell(
+                                                  adminIdInicial: data['adminId']?.toString(),
+                                                  nombreEmprendimientoInicial: emp,
+                                                  adminNombreInicial: adminNom,
+                                                ),
+                                              ),
                                             );
                                           },
                                         );

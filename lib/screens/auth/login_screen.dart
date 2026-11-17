@@ -9,7 +9,7 @@ import '../admin/admin_home_screen.dart';
 import '../../models/administrador_model.dart';
 import '../../services/client_service.dart';
 import '../../services/google_auth_service.dart';
-import '../client/enter_code_screen.dart';
+import '../client/client_welcome_hub_screen.dart';
 import 'register_client_screen.dart';
 import 'register_entrepreneur_screen.dart';
 import 'register_admin_screen.dart';
@@ -84,7 +84,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (rol == 'cliente') {
       final codigo = datos['codigoLive']?.toString().trim() ?? '';
       if (codigo.isEmpty) {
-        return const EnterCodeScreen();
+        return const ClientWelcomeHubScreen();
       }
       return const ClientShell();
     } else if (rol == 'secretaria' ||
@@ -183,7 +183,7 @@ class _LoginScreenState extends State<LoginScreen> {
             : clienteQuery.docs.first.data();
         final cod = data?['codigoLive']?.toString().trim() ?? '';
         if (cod.isEmpty) {
-          return const EnterCodeScreen();
+          return const ClientWelcomeHubScreen();
         }
         return const ClientShell();
       }

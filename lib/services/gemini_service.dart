@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../secrets.dart';
 
-/// Modelo de datos que encapsula el contexto real del cliente obtenido de Firebase
+/// Modelo de datos que encapsula el contexto real del cliente y de la tienda obtenido de Firebase
 class ContextoClienteChatbot {
   final String nombre;
   final String telefono;
@@ -14,8 +14,11 @@ class ContextoClienteChatbot {
   final int totalPrendas;
   final List<String> ultimasPrendas;
   final String nombreTienda;
+  final String nombreEmprendedor;
   final String direccionTienda;
   final String telefonoTienda;
+  final String correoTienda;
+  final List<String> catalogoPrendas;
 
   const ContextoClienteChatbot({
     required this.nombre,
@@ -27,8 +30,11 @@ class ContextoClienteChatbot {
     required this.totalPrendas,
     required this.ultimasPrendas,
     required this.nombreTienda,
+    required this.nombreEmprendedor,
     required this.direccionTienda,
     required this.telefonoTienda,
+    required this.correoTienda,
+    required this.catalogoPrendas,
   });
 
   factory ContextoClienteChatbot.vacio() {
@@ -41,9 +47,12 @@ class ContextoClienteChatbot {
       saldoPendiente: 0,
       totalPrendas: 0,
       ultimasPrendas: [],
-      nombreTienda: 'Vendix Store',
-      direccionTienda: 'Dirección física pendiente de configuración',
+      nombreTienda: 'Tienda Vendix',
+      nombreEmprendedor: 'Emprendedor Vendix',
+      direccionTienda: 'Consultar en la tienda física o transmisiones en vivo',
       telefonoTienda: '',
+      correoTienda: '',
+      catalogoPrendas: [],
     );
   }
 }
@@ -68,7 +77,7 @@ class GeminiService {
   static ChatSession? _chatSession;
   static String? _ultimoSystemPrompt;
 
-  /// Obtiene de Firebase toda la información relevante del cliente actual
+  /// Obtiene de Firebase toda la información relevante del cliente y de la tienda asociada
   static Future<ContextoClienteChatbot> obtenerContextoCliente() async {
     final authUser = FirebaseAuth.instance.currentUser;
     if (authUser == null) {
@@ -79,7 +88,7 @@ class GeminiService {
     final uid = authUser.uid;
 
     try {
-      // 1. Buscar en la colección 'clientes' por UID
+      // 1. Buscar datos del cliente en 'clientes' o 'usuarios'
       QuerySnapshot<Map<String, dynamic>> snapCliente = await db
           .collection('clientes')
           .where('uid', isEqualTo: uid)
@@ -93,7 +102,6 @@ class GeminiService {
         dataCliente = snapCliente.docs.first.data();
         clienteId = snapCliente.docs.first.id;
       } else {
-        // Fallback a la colección 'usuarios'
         final docUsuario = await db.collection('usuarios').doc(uid).get();
         if (docUsuario.exists) {
           dataCliente = docUsuario.data();
@@ -107,9 +115,23 @@ class GeminiService {
           .toString();
       final telefonoCliente = (dataCliente?['telefono'] ?? '').toString();
       final codigoLive = (dataCliente?['codigoLive'] ?? '').toString();
-      final adminId = (dataCliente?['adminId'] ?? '').toString();
+      String adminId = (dataCliente?['adminId'] ?? '').toString();
 
-      // 2. Consultar compras del cliente
+      // Si no tiene adminId directo, intentar resolverlo desde secretarios o compras
+      if (adminId.isEmpty && codigoLive.isNotEmpty) {
+        try {
+          final snapSec = await db
+              .collection('secretarios')
+              .where('codigoLive', isEqualTo: codigoLive)
+              .limit(1)
+              .get();
+          if (snapSec.docs.isNotEmpty) {
+            adminId = snapSec.docs.first.data()['adminId']?.toString() ?? '';
+          }
+        } catch (_) {}
+      }
+
+      // 2. Consultar compras del cliente (segregado estrictamente a su ID)
       double totalComprado = 0;
       int totalPrendas = 0;
       final List<String> ultimasPrendas = [];
@@ -135,14 +157,14 @@ class GeminiService {
           totalComprado += subtotal;
           totalPrendas += cantidad;
 
-          final nombrePrenda = (data['prendaNombre'] ?? '').toString();
-          if (nombrePrenda.isNotEmpty && ultimasPrendas.length < 4) {
+          final nombrePrenda = (data['prendaNombre'] ?? data['nombrePrenda'] ?? '').toString();
+          if (nombrePrenda.isNotEmpty && ultimasPrendas.length < 5) {
             ultimasPrendas.add('$nombrePrenda (x$cantidad, \$${subtotal.toStringAsFixed(2)})');
           }
         }
       }
 
-      // 3. Consultar pagos del cliente
+      // 3. Consultar pagos del cliente (segregado a su ID)
       double totalPagado = 0;
       if (clienteId.isNotEmpty) {
         final snapPagos = await db
@@ -161,15 +183,12 @@ class GeminiService {
 
       final saldoPendiente = (totalComprado - totalPagado).clamp(0.0, double.infinity);
 
-      // 4. Consultar datos de la tienda y su ubicación física
-      String nombreTienda = 'Moda Luna Showroom / Vendix';
-      String direccionTienda = 'Calle 10 de Agosto y Guayaquil, Riobamba, Ecuador';
+      // 4. Consultar datos reales del Emprendimiento y Emprendedor en 'Administradores'
+      String nombreTienda = 'Tienda Vendix';
+      String nombreEmprendedor = 'Emprendedor Propietario';
+      String direccionTienda = 'Ubicación coordinada por transmisiones en vivo';
       String telefonoTienda = '';
-
-      if (dataCliente?['direccionTienda'] != null &&
-          dataCliente!['direccionTienda'].toString().trim().isNotEmpty) {
-        direccionTienda = dataCliente['direccionTienda'].toString().trim();
-      }
+      String correoTienda = '';
 
       if (adminId.isNotEmpty) {
         try {
@@ -177,18 +196,72 @@ class GeminiService {
           if (snapAdmin.exists) {
             final dataAdmin = snapAdmin.data();
             if (dataAdmin != null) {
-              if (dataAdmin['negocio'] != null && dataAdmin['negocio'].toString().isNotEmpty) {
-                nombreTienda = dataAdmin['negocio'].toString();
-              } else if (dataAdmin['nombre'] != null) {
-                nombreTienda = dataAdmin['nombre'].toString();
+              // Nombre oficial del emprendimiento en Firestore
+              if (dataAdmin['nombreEmprendimiento'] != null &&
+                  dataAdmin['nombreEmprendimiento'].toString().trim().isNotEmpty) {
+                nombreTienda = dataAdmin['nombreEmprendimiento'].toString().trim();
+              } else if (dataAdmin['negocio'] != null &&
+                  dataAdmin['negocio'].toString().trim().isNotEmpty) {
+                nombreTienda = dataAdmin['negocio'].toString().trim();
               }
-              if (dataAdmin['direccion'] != null && dataAdmin['direccion'].toString().isNotEmpty) {
-                direccionTienda = dataAdmin['direccion'].toString();
+
+              // Nombre del emprendedor
+              final nomAdm = dataAdmin['nombre']?.toString().trim() ?? '';
+              final apeAdm = dataAdmin['apellido']?.toString().trim() ?? '';
+              final adminComp = [nomAdm, apeAdm].where((s) => s.isNotEmpty).join(' ');
+              if (adminComp.isNotEmpty) {
+                nombreEmprendedor = adminComp;
               }
+
+              // Dirección
+              if (dataAdmin['ubicacion_tienda'] is Map) {
+                final mapUbic = dataAdmin['ubicacion_tienda'] as Map<String, dynamic>;
+                if (mapUbic['direccion'] != null && mapUbic['direccion'].toString().isNotEmpty) {
+                  direccionTienda = mapUbic['direccion'].toString().trim();
+                }
+              } else if (dataAdmin['direccion'] != null &&
+                  dataAdmin['direccion'].toString().trim().isNotEmpty) {
+                direccionTienda = dataAdmin['direccion'].toString().trim();
+              }
+
               if (dataAdmin['telefono'] != null) {
-                telefonoTienda = dataAdmin['telefono'].toString();
+                telefonoTienda = dataAdmin['telefono'].toString().trim();
+              }
+              if (dataAdmin['correo'] != null) {
+                correoTienda = dataAdmin['correo'].toString().trim();
               }
             }
+          }
+        } catch (_) {}
+      }
+
+      // 5. Consultar Catálogo de Prendas disponibles de la tienda (máx 15 prendas)
+      final List<String> catalogoPrendas = [];
+      if (adminId.isNotEmpty) {
+        try {
+          final snapPrendas = await db
+              .collection('prendas')
+              .where('adminId', isEqualTo: adminId)
+              .where('disponible', isEqualTo: true)
+              .limit(15)
+              .get();
+
+          for (final doc in snapPrendas.docs) {
+            final d = doc.data();
+            final nom = (d['nombre'] ?? 'Prenda').toString().trim();
+            final pre = (d['precio'] is num)
+                ? (d['precio'] as num).toDouble()
+                : double.tryParse(d['precio']?.toString() ?? '') ?? 0.0;
+            final tal = d['talla']?.toString().trim() ?? '';
+            final col = d['color']?.toString().trim() ?? '';
+            final stk = d['stock'] ?? 1;
+
+            final List<String> detalles = [];
+            if (tal.isNotEmpty) detalles.add('Talla $tal');
+            if (col.isNotEmpty) detalles.add('Color $col');
+            detalles.add('Stock: $stk');
+
+            catalogoPrendas.add('$nom — \$${pre.toStringAsFixed(2)} (${detalles.join(', ')})');
           }
         } catch (_) {}
       }
@@ -203,42 +276,59 @@ class GeminiService {
         totalPrendas: totalPrendas,
         ultimasPrendas: ultimasPrendas,
         nombreTienda: nombreTienda,
+        nombreEmprendedor: nombreEmprendedor,
         direccionTienda: direccionTienda,
         telefonoTienda: telefonoTienda,
+        correoTienda: correoTienda,
+        catalogoPrendas: catalogoPrendas,
       );
     } catch (_) {
       return ContextoClienteChatbot.vacio();
     }
   }
 
-  /// Construye el Prompt de Sistema inyectando los datos vivos de Firebase
+  /// Construye el Prompt de Sistema inyectando los datos vivos de Firebase con estricta seguridad
   static String _construirSystemPrompt(ContextoClienteChatbot ctx) {
-    return '''
-Eres el asistente virtual oficial de compras de la tienda "${ctx.nombreTienda}" en la aplicación VENDIX.
-Tu misión es atender exclusivamente al cliente que ha iniciado sesión, respondiendo siempre con amabilidad, claridad y precisión basándote en su información real de Firebase:
+    final catalogoTexto = ctx.catalogoPrendas.isNotEmpty
+        ? ctx.catalogoPrendas.map((p) => '• $p').join('\n')
+        : 'Catálogo disponible en transmisiones en vivo o actualizado por la tienda.';
 
-=== INFORMACIÓN REAL DEL CLIENTE EN FIREBASE ===
+    final ultimasPrendasTexto = ctx.ultimasPrendas.isNotEmpty
+        ? ctx.ultimasPrendas.map((p) => '• $p').join('\n')
+        : 'Aún no registra compras recientes.';
+
+    return '''
+Eres el asistente virtual inteligente oficial de la tienda "${ctx.nombreTienda}" en la plataforma VENDIX.
+Tu misión es atender exclusivamente al cliente que ha iniciado sesión, respondiendo con amabilidad, precisión y datos 100% reales de la base de datos de Firebase:
+
+=== 🏬 INFORMACIÓN REAL DEL EMPRENDIMIENTO Y PROPIETARIO ===
+- Nombre oficial del negocio: ${ctx.nombreTienda}
+- Emprendedor propietario: ${ctx.nombreEmprendedor}
+- Dirección física de la tienda: ${ctx.direccionTienda}
+- Teléfono de atención de la tienda: ${ctx.telefonoTienda.isNotEmpty ? ctx.telefonoTienda : 'Coordinación por la app'}
+- Correo de contacto: ${ctx.correoTienda.isNotEmpty ? ctx.correoTienda : 'No registrado'}
+- Código de transmisión en vivo (Live): ${ctx.codigoLive.isNotEmpty ? ctx.codigoLive : 'Sin código activo'}
+
+=== 👗 CATÁLOGO DE PRENDAS DISPONIBLES EN TIENDA ===
+$catalogoTexto
+
+=== 👤 INFORMACIÓN REAL DE LA CUENTA DEL CLIENTE ===
 - Nombre del cliente: ${ctx.nombre}
-- Teléfono: ${ctx.telefono.isNotEmpty ? ctx.telefono : 'No registrado'}
-- Saldo pendiente por pagar: \$${ctx.saldoPendiente.toStringAsFixed(2)}
+- Teléfono del cliente: ${ctx.telefono.isNotEmpty ? ctx.telefono : 'No registrado'}
+- Saldo pendiente por cancelar: \$${ctx.saldoPendiente.toStringAsFixed(2)}
 - Total comprado históricamente: \$${ctx.totalComprado.toStringAsFixed(2)}
 - Total abonado / pagado: \$${ctx.totalPagado.toStringAsFixed(2)}
-- Prendas apartadas en total: ${ctx.totalPrendas} prendas
-- Últimas prendas registradas: ${ctx.ultimasPrendas.isEmpty ? 'Aún no registra compras recientes' : ctx.ultimasPrendas.join('; ')}
-- Código de transmisión en vivo (Live): ${ctx.codigoLive.isNotEmpty ? ctx.codigoLive : 'Sin código asignado'}
+- Total prendas apartadas: ${ctx.totalPrendas} prendas
+- Últimas prendas apartadas por este cliente:
+$ultimasPrendasTexto
 
-=== UBICACIÓN DE LA TIENDA FÍSICA ===
-- Nombre del negocio: ${ctx.nombreTienda}
-- Dirección física de la tienda: ${ctx.direccionTienda}
-- Teléfono de contacto / atención: ${ctx.telefonoTienda.isNotEmpty ? ctx.telefonoTienda : 'Directamente por esta app'}
-
-=== REGLAS ESTRICTAS DE RESPUESTA ===
-1. Si el cliente pregunta por su saldo, deuda o cuánto tiene que pagar, dale exactamente su saldo pendiente actual (\$${ctx.saldoPendiente.toStringAsFixed(2)}). Si es \$0.00, felicítalo amablemente por estar al día.
-2. Si el cliente pregunta "¿Dónde se encuentran?", "¿Dónde queda la tienda?", su ubicación física o cómo retirar sus prendas, dale la dirección física exacta: "${ctx.direccionTienda}". Menciónale que pueden visitarnos para retirar sus prendas o coordinar entregas.
-3. NO menciones medios de pago automáticos ni pasarelas de pago no autorizadas. Si pregunta cómo pagar, indícale que los abonos se coordinan directamente con la tienda o se registran en el local físico.
-4. Si el cliente pregunta cómo apartar durante el Live de TikTok o Facebook, explícale que cuando la emprendedora muestre la prenda en la transmisión, solo debe comentar en el live y la secretaria encargada la registrará en tiempo real a su nombre en esta app.
-5. Si pregunta por sus prendas apartadas, menciónale el total (${ctx.totalPrendas} prendas) y las últimas registradas: ${ctx.ultimasPrendas.join(', ')}.
-6. Sé siempre cordial, educado y conciso. Emplea un tono cercano y emojis adecuados de moda y compras (🛍️, ✨, 📍, 👗, 🏷️).
+=== 🛡️ REGLAS ESTRICTAS DE RESPUESTA Y SEGURIDAD ===
+1. Si preguntan por el nombre de la tienda, del negocio o quién es el dueño/emprendedor, responde exactamente: la tienda es "${ctx.nombreTienda}" y el emprendedor propietario es ${ctx.nombreEmprendedor}. ¡NUNCA inventes nombres de tiendas ficticias!
+2. Si preguntan por prendas disponibles, catálogo, ropa, tallas o precios, describe amablemente las prendas reales del catálogo de la tienda indicado arriba.
+3. Si el cliente pregunta por su saldo o deuda, dale su saldo pendiente actual (\$${ctx.saldoPendiente.toStringAsFixed(2)}). Si es \$0.00, felicítalo por estar al día.
+4. Si preguntan dónde queda la tienda o cómo retirar prendas, indica la dirección exacta: "${ctx.direccionTienda}".
+5. Si preguntan cómo apartar durante el live de TikTok o Facebook, explica que deben comentar en el live cuando muestren la prenda y el secretario la registrará en tiempo real a su nombre en VENDIX.
+6. SEGURIDAD: NUNCA menciones datos de otros clientes ni expongas tokens, claves o contraseñas. Mantén un tono cordial, educado y conciso con emojis (🛍️, ✨, 📍, 👗, 🏷️).
 ''';
   }
 
@@ -250,7 +340,6 @@ Tu misión es atender exclusivamente al cliente que ha iniciado sesión, respond
     final mensajeLimpio = mensaje.trim();
     if (mensajeLimpio.isEmpty) return '';
 
-    // Si no se ha configurado la clave de Gemini, respondemos con los datos directos de Firebase
     if (apiKey.isEmpty) {
       return _responderFallbackConFirebase(mensajeLimpio, contexto);
     }
@@ -258,7 +347,6 @@ Tu misión es atender exclusivamente al cliente que ha iniciado sesión, respond
     try {
       final systemPrompt = _construirSystemPrompt(contexto);
 
-      // Si el prompt cambió o el modelo no está inicializado, creamos una nueva sesión
       if (_modelo == null || _ultimoSystemPrompt != systemPrompt) {
         _modelo = GenerativeModel(
           model: modeloGemini,
@@ -278,7 +366,6 @@ Tu misión es atender exclusivamente al cliente que ha iniciado sesión, respond
 
       return _responderFallbackConFirebase(mensajeLimpio, contexto);
     } catch (e) {
-      // Si el modelo principal está ocupado, intentamos con el modelo alternativo
       try {
         final systemPrompt = _construirSystemPrompt(contexto);
         final modeloRespaldo = GenerativeModel(
@@ -293,19 +380,29 @@ Tu misión es atender exclusivamente al cliente que ha iniciado sesión, respond
         }
       } catch (_) {}
 
-      // Si ocurre un error de red o cuota, respondemos con los datos reales de Firebase
       return _responderFallbackConFirebase(mensajeLimpio, contexto);
     }
   }
 
-  /// Respuesta basada en datos reales de Firebase cuando la API Key está pendiente
+  /// Respuesta basada en datos reales de Firebase cuando la API Key no responde o está offline
   static String _responderFallbackConFirebase(
     String mensaje,
     ContextoClienteChatbot ctx,
   ) {
     final m = mensaje.toLowerCase();
 
-    // 1. Consulta de saldo o deuda
+    // 1. Consulta sobre la tienda o el emprendedor / dueño
+    if (m.contains('tienda') ||
+        m.contains('negocio') ||
+        m.contains('dueño') ||
+        m.contains('dueno') ||
+        m.contains('propietario') ||
+        m.contains('emprendedor') ||
+        m.contains('quien')) {
+      return '🏬 Nuestra tienda oficial es "${ctx.nombreTienda}", fundada y dirigida por el emprendedor ${ctx.nombreEmprendedor}. ¡Un gusto atenderte! ✨';
+    }
+
+    // 2. Consulta de saldo o deuda
     if (m.contains('saldo') ||
         m.contains('cuanto debo') ||
         m.contains('cuánto debo') ||
@@ -319,36 +416,49 @@ Tu misión es atender exclusivamente al cliente que ha iniciado sesión, respond
       }
     }
 
-    // 2. Consulta de ubicación / dónde se encuentran
+    // 3. Consulta de ubicación / dónde se encuentran
     if (m.contains('donde') ||
         m.contains('dónde') ||
         m.contains('ubicacion') ||
         m.contains('ubicación') ||
         m.contains('encuentran') ||
-        m.contains('tienda') ||
         m.contains('local') ||
         m.contains('direccion') ||
         m.contains('dirección')) {
       return '📍 Nuestra tienda física "${ctx.nombreTienda}" se encuentra ubicada en:\n\n${ctx.direccionTienda}\n\n¡Puedes visitarnos para retirar tus prendas apartadas en las transmisiones en vivo! ✨👗';
     }
 
-    // 3. Consulta de cómo apartar en Live
-    if (m.contains('apartar') || m.contains('live') || m.contains('comprar') || m.contains('pedido')) {
-      return '🛍️ Para apartar prendas es muy sencillo:\n\n1. Conéctate a las transmisiones en vivo en TikTok o Facebook Live.\n2. Cuando la vendedora muestre una prenda de tu agrado, coméntalo en el chat en vivo.\n3. La secretaria registrará la prenda a tu nombre en Vendix y verás tu saldo reflejado al instante en esta app ✨.';
-    }
-
-    // 4. Consulta de prendas apartadas
-    if (m.contains('prenda') || m.contains('ropa') || m.contains('apartada') || m.contains('compras')) {
-      if (ctx.totalPrendas > 0) {
-        final detalle = ctx.ultimasPrendas.isNotEmpty ? '\n\nÚltimas prendas:\n• ${ctx.ultimasPrendas.join('\n• ')}' : '';
-        return '📦 Tienes un total de ${ctx.totalPrendas} prenda(s) apartada(s) en tu cuenta.$detalle\n\nPuedes ver el desglose completo en la pestaña "Compras" de la app.';
-      } else {
-        return '📦 Aún no tienes prendas apartadas en tu cuenta. ¡Conéctate a la próxima transmisión en vivo para apartar tus prendas favoritas! 👗✨';
+    // 4. Consulta de catálogo / prendas disponibles
+    if (m.contains('catalogo') ||
+        m.contains('catálogo') ||
+        m.contains('prendas tienen') ||
+        m.contains('ropa tienen') ||
+        m.contains('que venden') ||
+        m.contains('qué venden') ||
+        m.contains('disponibles')) {
+      if (ctx.catalogoPrendas.isNotEmpty) {
+        final lista = ctx.catalogoPrendas.take(6).join('\n• ');
+        return '👗 Prendas disponibles en "${ctx.nombreTienda}":\n\n• $lista\n\n¡Coméntalas en el próximo live para apartarlas!';
       }
     }
 
+    // 5. Consulta de prendas apartadas del cliente
+    if (m.contains('prenda') || m.contains('ropa') || m.contains('apartada') || m.contains('compras')) {
+      if (ctx.totalPrendas > 0) {
+        final detalle = ctx.ultimasPrendas.isNotEmpty ? '\n\nÚltimas prendas apartadas:\n• ${ctx.ultimasPrendas.join('\n• ')}' : '';
+        return '📦 Tienes un total de ${ctx.totalPrendas} prenda(s) apartada(s) en tu cuenta.$detalle\n\nPuedes ver el desglose completo en la pestaña "Compras" de la app.';
+      } else {
+        return '📦 Aún no tienes prendas apartadas en tu cuenta. ¡Conéctate a la próxima transmisión en vivo de "${ctx.nombreTienda}" para apartar tus prendas favoritas! 👗✨';
+      }
+    }
+
+    // 6. Consulta de cómo apartar en Live
+    if (m.contains('apartar') || m.contains('live') || m.contains('comprar') || m.contains('pedido')) {
+      return '🛍️ Para apartar prendas en "${ctx.nombreTienda}" es muy sencillo:\n\n1. Conéctate a las transmisiones en vivo en TikTok o Facebook Live.\n2. Cuando muestren una prenda de tu agrado, coméntalo en el chat en vivo.\n3. El secretario registrará la prenda a tu nombre en Vendix y verás tu saldo reflejado al instante en esta app ✨.';
+    }
+
     // Respuesta general amable
-    return '¡Hola ${ctx.nombre}! 👋 Soy el Asistente Vendix de "${ctx.nombreTienda}". Puedo informarte tu saldo pendiente (\$${ctx.saldoPendiente.toStringAsFixed(2)}), decirte dónde queda nuestra tienda física (${ctx.direccionTienda}) o explicarte cómo apartar prendas en las transmisiones en vivo.';
+    return '¡Hola ${ctx.nombre}! 👋 Soy el Asistente Vendix de "${ctx.nombreTienda}" (${ctx.nombreEmprendedor}). Puedo informarte tu saldo pendiente (\$${ctx.saldoPendiente.toStringAsFixed(2)}), nuestro catálogo de prendas, decirte dónde queda nuestra tienda física (${ctx.direccionTienda}) o cómo apartar en los lives.';
   }
 
   /// Limpia la sesión del chat al cerrar el modal o la sesión

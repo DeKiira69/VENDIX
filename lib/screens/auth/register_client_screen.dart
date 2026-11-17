@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../client/enter_code_screen.dart';
+import '../client/client_welcome_hub_screen.dart';
 import '../../services/google_auth_service.dart';
 
 class RegisterClientScreen extends StatefulWidget {
@@ -115,9 +116,9 @@ class _RegisterClientScreenState extends State<RegisterClientScreen> {
 
       if (!mounted) return;
 
-      // Al registrarse, se le pide inmediatamente el código en la pantalla post-login
+      // Al registrarse, se muestra la pantalla de selección inicial (Asociarse a tienda o Solicitar empleo)
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const EnterCodeScreen()),
+        MaterialPageRoute(builder: (_) => const ClientWelcomeHubScreen()),
         (route) => false,
       );
     } on FirebaseAuthException catch (e) {

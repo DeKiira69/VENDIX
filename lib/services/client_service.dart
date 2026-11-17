@@ -12,12 +12,34 @@ class ClientService {
   static final Map<String, Stream<List<Map<String, dynamic>>>> _comprasStreamCache = {};
   static final Map<String, Stream<List<Map<String, dynamic>>>> _pagosStreamCache = {};
 
+  // Estado de la sesión activa del secretario (soporte multi-emprendimiento)
+  static String? activeSecretaryAdminId;
+  static String? activeSecretaryNombreEmprendimiento;
+  static String? activeSecretaryAdminNombre;
+
+  static void setActiveSecretarySession({
+    required String adminId,
+    String? nombreEmprendimiento,
+    String? adminNombre,
+  }) {
+    activeSecretaryAdminId = adminId;
+    if (nombreEmprendimiento != null) {
+      activeSecretaryNombreEmprendimiento = nombreEmprendimiento;
+    }
+    if (adminNombre != null) {
+      activeSecretaryAdminNombre = adminNombre;
+    }
+  }
+
   /// Limpia los streams cacheados al cerrar sesión.
   static void limpiarCache() {
     _clienteActualStream = null;
     _clienteActualUid = null;
     _comprasStreamCache.clear();
     _pagosStreamCache.clear();
+    activeSecretaryAdminId = null;
+    activeSecretaryNombreEmprendimiento = null;
+    activeSecretaryAdminNombre = null;
   }
 
   // Identificador del usuario que inició sesión.
