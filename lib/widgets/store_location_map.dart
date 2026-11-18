@@ -6,6 +6,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:geolocator/geolocator.dart' as geo;
 
 import '../secrets.dart';
 
@@ -66,7 +67,21 @@ class _StoreLocationPickerPageState extends State<StoreLocationPickerPage> {
   bool _listo = false;
   bool _buscandoDireccion = false;
   bool _resolviendoDireccion = false;
+  bool _obteniendoGps = false;
   String? _mensajeDireccion;
+  late final TextEditingController _busquedaController;
+
+  @override
+  void initState() {
+    super.initState();
+    _busquedaController = TextEditingController(text: widget.queryAddress);
+  }
+
+  @override
+  void dispose() {
+    _busquedaController.dispose();
+    super.dispose();
+  }
 
   void _onMapCreated(MapboxMap map) {
     setState(() {
@@ -75,7 +90,129 @@ class _StoreLocationPickerPageState extends State<StoreLocationPickerPage> {
     });
 
     final direccion = widget.queryAddress.trim();
-    if (direccion.isNotEmpty) _buscarDireccion(direccion);
+    if (direccion.isNotEmpty) {
+      _buscarDireccion(direccion);
+    } else if (widget.initialLocation != null) {
+      _map?.setCamera(
+        CameraOptions(
+          center: Point(
+            coordinates: Position(
+              widget.initialLocation!.longitude,
+              widget.initialLocation!.latitude,
+            ),
+          ),
+          zoom: 16,
+        ),
+      );
+    } else {
+      // Si no hay dirección previa ni ubicación inicial, solicitar permiso y ubicar por GPS en tiempo real
+      _obtenerUbicacionActualGPS(animarCamara: true, mostrarFeedback: true);
+    }
+  }
+
+  /// Solicita permisos de ubicación y obtiene la posición GPS en tiempo real
+  Future<void> _obtenerUbicacionActualGPS({
+    bool animarCamara = true,
+    bool mostrarFeedback = true,
+  }) async {
+    if (_obteniendoGps) return;
+
+    setState(() {
+      _obteniendoGps = true;
+      if (mostrarFeedback) {
+        _mensajeDireccion = 'Solicitando permiso y detectando tu ubicación actual (GPS)…';
+      }
+    });
+
+    try {
+      final servicioHabilitado = await geo.Geolocator.isLocationServiceEnabled();
+      if (!servicioHabilitado) {
+        if (mounted) {
+          setState(() {
+            _obteniendoGps = false;
+            _mensajeDireccion =
+                'El servicio GPS está desactivado. Actívalo para ubicarte automáticamente.';
+          });
+          if (mostrarFeedback) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'El servicio de ubicación (GPS) está apagado en tu teléfono.',
+                ),
+              ),
+            );
+          }
+        }
+        return;
+      }
+
+      geo.LocationPermission permiso = await geo.Geolocator.checkPermission();
+      if (permiso == geo.LocationPermission.denied) {
+        permiso = await geo.Geolocator.requestPermission();
+        if (permiso == geo.LocationPermission.denied) {
+          if (mounted) {
+            setState(() {
+              _obteniendoGps = false;
+              _mensajeDireccion =
+                  'Permiso de ubicación denegado. Puedes mover el mapa manualmente o buscar por dirección.';
+            });
+          }
+          return;
+        }
+      }
+
+      if (permiso == geo.LocationPermission.deniedForever) {
+        if (mounted) {
+          setState(() {
+            _obteniendoGps = false;
+            _mensajeDireccion =
+                'Permiso de ubicación denegado en Ajustes. Puedes mover el mapa manualmente.';
+          });
+        }
+        return;
+      }
+
+      final position = await geo.Geolocator.getCurrentPosition(
+        locationSettings: const geo.LocationSettings(
+          accuracy: geo.LocationAccuracy.high,
+          timeLimit: Duration(seconds: 12),
+        ),
+      );
+
+      if (_map != null && animarCamara) {
+        await _map?.setCamera(
+          CameraOptions(
+            center: Point(
+              coordinates: Position(position.longitude, position.latitude),
+            ),
+            zoom: 16.5,
+          ),
+        );
+      }
+
+      final direccionDetectada = await _obtenerNombreDireccion(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+
+      if (mounted) {
+        setState(() {
+          _busquedaController.text = direccionDetectada;
+          _mensajeDireccion = '📍 Ubicación GPS detectada: $direccionDetectada';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _mensajeDireccion =
+              'No se pudo obtener el GPS actual. Puedes mover el marcador en el mapa.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _obteniendoGps = false);
+      }
+    }
   }
 
   Future<void> _buscarDireccion(String direccion) async {
@@ -296,14 +433,97 @@ class _StoreLocationPickerPageState extends State<StoreLocationPickerPage> {
     final hasToken = kMapboxAccessToken.isNotEmpty;
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title), foregroundColor: _violeta),
+      appBar: AppBar(
+        title: Text(widget.title),
+        foregroundColor: _violeta,
+        actions: [
+          IconButton(
+            icon: _obteniendoGps
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: _violeta,
+                    ),
+                  )
+                : const Icon(Icons.my_location_rounded),
+            tooltip: 'Detectar mi ubicación GPS actual',
+            onPressed: _obteniendoGps
+                ? null
+                : () => _obtenerUbicacionActualGPS(
+                      animarCamara: true,
+                      mostrarFeedback: true,
+                    ),
+          ),
+        ],
+      ),
       body: Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+            child: TextField(
+              controller: _busquedaController,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (texto) {
+                if (texto.trim().isNotEmpty) {
+                  _buscarDireccion(texto.trim());
+                }
+              },
+              decoration: InputDecoration(
+                hintText: 'Buscar dirección, calle o referencia…',
+                hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
+                prefixIcon: const Icon(Icons.search, size: 20, color: _violeta),
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_busquedaController.text.isNotEmpty)
+                      IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: () {
+                          _busquedaController.clear();
+                          setState(() {});
+                        },
+                      ),
+                    IconButton(
+                      tooltip: 'Buscar dirección',
+                      icon: const Icon(Icons.arrow_forward_rounded, color: _violeta),
+                      onPressed: () {
+                        if (_busquedaController.text.trim().isNotEmpty) {
+                          _buscarDireccion(_busquedaController.text.trim());
+                        }
+                      },
+                    ),
+                  ],
+                ),
+                filled: true,
+                fillColor: Colors.white,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE5DCF5)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE5DCF5)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: _violeta, width: 1.5),
+                ),
+              ),
+            ),
+          ),
           const Padding(
-            padding: EdgeInsets.fromLTRB(18, 12, 18, 10),
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 6),
             child: Text(
-              'Buscamos la dirección que escribiste. Luego mueve el mapa para poner el marcador sobre la entrada.',
+              'Usa el GPS en tiempo real, busca una dirección o mueve el mapa para posicionar el pin en la entrada de la tienda.',
               textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11, color: Colors.black54),
             ),
           ),
           Expanded(
@@ -337,6 +557,33 @@ class _StoreLocationPickerPageState extends State<StoreLocationPickerPage> {
                           ),
                         ),
                       ),
+                      Positioned(
+                        bottom: 16,
+                        right: 16,
+                        child: FloatingActionButton.small(
+                          heroTag: 'fab_gps_picker_${identityHashCode(this)}',
+                          backgroundColor: Colors.white,
+                          foregroundColor: _violeta,
+                          elevation: 3,
+                          tooltip: 'Mi ubicación actual (GPS en tiempo real)',
+                          onPressed: _obteniendoGps
+                              ? null
+                              : () => _obtenerUbicacionActualGPS(
+                                    animarCamara: true,
+                                    mostrarFeedback: true,
+                                  ),
+                          child: _obteniendoGps
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: _violeta,
+                                  ),
+                                )
+                              : const Icon(Icons.my_location_rounded, size: 20),
+                        ),
+                      ),
                       if (!_listo)
                         const Center(child: CircularProgressIndicator()),
                     ],
@@ -351,12 +598,12 @@ class _StoreLocationPickerPageState extends State<StoreLocationPickerPage> {
                     ),
                   ),
           ),
-          if (_buscandoDireccion || _mensajeDireccion != null)
+          if (_buscandoDireccion || _obteniendoGps || _mensajeDireccion != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: Row(
                 children: [
-                  if (_buscandoDireccion) ...[
+                  if (_buscandoDireccion || _obteniendoGps) ...[
                     const SizedBox(
                       width: 16,
                       height: 16,

@@ -31,7 +31,7 @@ class GoogleAuthService {
       return 'El navegador bloqueó la ventana emergente de Google. Si usas Brave o un bloqueador, desactiva el escudo (Brave Shields) o permite las ventanas emergentes en localhost.';
     }
     if (str.contains('16') || str.contains('Account reauth failed') || str.contains('DEVELOPER_ERROR') || str.contains('[10]')) {
-      return 'Error de sincronización con Google [16]: Revisa que tu cuenta de Google esté sincronizada o borra la caché de Servicios de Google Play en Ajustes de tu teléfono.';
+      return 'Error Google [16]: La huella SHA-1 de este APK no está registrada en Firebase o tu correo no es usuario de prueba. Agrega la huella SHA-1 en Firebase Console.';
     }
     return 'Error al acceder con Google: $e';
   }
@@ -55,8 +55,31 @@ class GoogleAuthService {
         _initialized = true;
       }
 
-      final GoogleSignInAccount account =
-          await GoogleSignIn.instance.authenticate();
+      GoogleSignInAccount? account;
+      try {
+        // Limpiamos cualquier credencial previa corrupta o en caché para asegurar un diálogo limpio
+        try {
+          await GoogleSignIn.instance.signOut();
+        } catch (_) {}
+
+        account = await GoogleSignIn.instance.authenticate();
+      } catch (e) {
+        final str = e.toString();
+        // Si falló por reauth [16] o cancelación de estado previo, limpiamos a fondo y reintentamos una vez
+        if (str.contains('16') || str.contains('reauth') || str.contains('canceled')) {
+          try {
+            await GoogleSignIn.instance.signOut();
+            await GoogleSignIn.instance.disconnect();
+          } catch (_) {}
+          try {
+            account = await GoogleSignIn.instance.authenticate();
+          } catch (_) {
+            rethrow;
+          }
+        } else {
+          rethrow;
+        }
+      }
 
       final AuthCredential credential = GoogleAuthProvider.credential(
         idToken: account.authentication.idToken,

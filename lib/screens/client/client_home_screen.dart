@@ -196,564 +196,703 @@ class ClientHomeScreen extends StatelessWidget {
           }
 
           final clienteId = cliente['id'] as String;
-          final adminId = cliente['adminId']?.toString() ?? '';
+          String adminId = cliente['adminId']?.toString() ?? '';
+          final codigoLive = cliente['codigoLive']?.toString() ?? '';
           final nombre = (cliente['nombre'] ?? 'Cliente').toString();
           final nombres = nombre.trim().split(RegExp(r'\s+'));
           final saludo = nombres.isNotEmpty ? nombres.first : 'Cliente';
 
-          return StreamBuilder<List<Map<String, dynamic>>>(
-            stream: ClientService.compras(clienteId),
-            builder: (context, comprasSnapshot) {
-              return StreamBuilder<List<Map<String, dynamic>>>(
-                stream: ClientService.pagos(clienteId),
-                builder: (context, pagosSnapshot) {
-                  if (comprasSnapshot.hasError || pagosSnapshot.hasError) {
-                    return const Center(
-                      child: Text('No se pudo cargar tu estado de cuenta.'),
-                    );
-                  }
+          // Si adminId está vacío, intentar resolverlo desde secretarios
+          if (adminId.isEmpty) {
+            return FutureBuilder<String>(
+              future: _resolverAdminId(clienteId: clienteId, codigoLive: codigoLive),
+              builder: (context, adminIdSnap) {
+                final resolvedAdminId = adminIdSnap.data ?? '';
+                // Si encontramos el adminId real, guardar para la próxima carga y reconstruir con él
+                if (adminIdSnap.connectionState == ConnectionState.done &&
+                    resolvedAdminId.isNotEmpty &&
+                    resolvedAdminId != adminId) {
+                  // Guardar adminId en firestore para la próxima carga instantánea
+                  Future.microtask(() async {
+                    final uid = FirebaseAuth.instance.currentUser?.uid;
+                    if (uid != null) {
+                      final batch = FirebaseFirestore.instance.batch();
+                      batch.set(
+                        FirebaseFirestore.instance.collection('clientes').doc(clienteId),
+                        {'adminId': resolvedAdminId},
+                        SetOptions(merge: true),
+                      );
+                      batch.set(
+                        FirebaseFirestore.instance.collection('usuarios').doc(uid),
+                        {'adminId': resolvedAdminId},
+                        SetOptions(merge: true),
+                      );
+                      try { await batch.commit(); } catch (_) {}
+                    }
+                  });
+                }
+                return _buildClientBody(
+                  context,
+                  cliente: cliente,
+                  clienteId: clienteId,
+                  adminId: resolvedAdminId,
+                  saludo: saludo,
+                  nombre: nombre,
+                  nombres: nombres,
+                );
+              },
+            );
+          }
 
-                  // En lugar de bloquear la pantalla completa con un spinner,
-                  // mostramos la UI de inmediato con valores calculados o en carga.
-                  final cargandoFinanzas =
-                      !comprasSnapshot.hasData || !pagosSnapshot.hasData;
+          return _buildClientBody(
+            context,
+            cliente: cliente,
+            clienteId: clienteId,
+            adminId: adminId,
+            saludo: saludo,
+            nombre: nombre,
+            nombres: nombres,
+          );
+        },
+      ),
+    );
+  }
 
-                  final compras = comprasSnapshot.data ?? [];
-                  final pagos = pagosSnapshot.data ?? [];
+  /// Resuelve el adminId desde secretarios o desde la primera tienda activa.
+  static Future<String> _resolverAdminId({
+    required String clienteId,
+    required String codigoLive,
+  }) async {
+    final db = FirebaseFirestore.instance;
 
-                  final totalComprado = compras.fold<double>(
-                    0,
-                    (suma, compra) => suma + _subtotal(compra),
-                  );
+    // 1. Por codigoLive → secretarios
+    if (codigoLive.isNotEmpty) {
+      try {
+        final snap = await db
+            .collection('secretarios')
+            .where('codigoLive', isEqualTo: codigoLive)
+            .limit(1)
+            .get();
+        if (snap.docs.isNotEmpty) {
+          final id = snap.docs.first.data()['adminId']?.toString() ?? '';
+          if (id.isNotEmpty) return id;
+        }
+      } catch (_) {}
+    }
 
-                  final totalPagado = pagos.fold<double>(
-                    0,
-                    (suma, pago) => suma + ClientService.numero(pago['monto']),
-                  );
+    // 2. Por compras del cliente
+    if (clienteId.isNotEmpty) {
+      try {
+        final snap = await db
+            .collection('compras')
+            .where('clienteId', isEqualTo: clienteId)
+            .limit(1)
+            .get();
+        if (snap.docs.isNotEmpty) {
+          final id = snap.docs.first.data()['adminId']?.toString() ?? '';
+          if (id.isNotEmpty) return id;
+        }
+      } catch (_) {}
+    }
 
-                  final saldo = (totalComprado - totalPagado)
-                      .clamp(0.0, double.infinity)
-                      .toDouble();
+    // 3. Primera tienda activa (Administradores con estado == true)
+    try {
+      final snap = await db
+          .collection('Administradores')
+          .where('estado', isEqualTo: true)
+          .limit(1)
+          .get();
+      if (snap.docs.isNotEmpty) return snap.docs.first.id;
+    } catch (_) {}
 
-                  final prendas = compras.fold<int>(
-                    0,
-                    (suma, compra) =>
-                        suma + ClientService.numero(compra['cantidad']).toInt(),
-                  );
+    return '';
+  }
 
-                  final ultimaCompra = compras.isEmpty ? null : compras.first;
+  Widget _buildClientBody(
+    BuildContext context, {
+    required Map<String, dynamic> cliente,
+    required String clienteId,
+    required String adminId,
+    required String saludo,
+    required String nombre,
+    required List<String> nombres,
+  }) {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: ClientService.compras(clienteId),
+      builder: (context, comprasSnapshot) {
+        return StreamBuilder<List<Map<String, dynamic>>>(
+          stream: ClientService.pagos(clienteId),
+          builder: (context, pagosSnapshot) {
+            if (comprasSnapshot.hasError || pagosSnapshot.hasError) {
+              return const Center(
+                child: Text('No se pudo cargar tu estado de cuenta.'),
+              );
+            }
 
-                  return ListView(
-                    padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
-                    children: [
-                      Row(
+            final cargandoFinanzas =
+                !comprasSnapshot.hasData || !pagosSnapshot.hasData;
+            final compras = comprasSnapshot.data ?? [];
+            final pagos = pagosSnapshot.data ?? [];
+
+            final totalComprado = compras.fold<double>(
+              0,
+              (suma, compra) => suma + _subtotal(compra),
+            );
+
+            final totalPagado = pagos.fold<double>(
+              0,
+              (suma, pago) => suma + ClientService.numero(pago['monto']),
+            );
+
+            final saldo = (totalComprado - totalPagado)
+                .clamp(0.0, double.infinity)
+                .toDouble();
+
+            final prendas = compras.fold<int>(
+              0,
+              (suma, compra) =>
+                  suma + ClientService.numero(compra['cantidad']).toInt(),
+            );
+
+            final ultimaCompra = compras.isEmpty ? null : compras.first;
+
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'QUÉ GUSTO VERTE',
-                                  style: TextStyle(
-                                    color: violeta,
-                                    fontSize: 10,
-                                    letterSpacing: 1.2,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Hola, $saludo',
-                                  style: const TextStyle(
-                                    color: oscuro,
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
+                          const Text(
+                            'QUÉ GUSTO VERTE',
+                            style: TextStyle(
+                              color: violeta,
+                              fontSize: 10,
+                              letterSpacing: 1.2,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                          StreamBuilder<String?>(
-                            stream: PerfilFotoService.fotoStream(
-                              FirebaseAuth.instance.currentUser?.uid,
+                          const SizedBox(height: 4),
+                          Text(
+                            'Hola, $saludo',
+                            style: const TextStyle(
+                              color: oscuro,
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
                             ),
-                            builder: (context, fotoSnapshot) {
-                              final fotoData =
-                                  fotoSnapshot.data ??
-                                  cliente['fotoBase64']?.toString() ??
-                                  cliente['fotoUrl']?.toString();
-
-                              if (fotoData != null && fotoData.isNotEmpty) {
-                                ImageProvider? imageProvider;
-                                if (fotoData.startsWith('http://') ||
-                                    fotoData.startsWith('https://')) {
-                                  imageProvider = NetworkImage(fotoData);
-                                } else {
-                                  try {
-                                    final cleanBase64 = fotoData.contains(',')
-                                        ? fotoData.split(',').last
-                                        : fotoData;
-                                    imageProvider = MemoryImage(
-                                      base64Decode(cleanBase64),
-                                    );
-                                  } catch (_) {
-                                    imageProvider = null;
-                                  }
-                                }
-
-                                return CircleAvatar(
-                                  radius: 22,
-                                  backgroundColor: rosa,
-                                  backgroundImage: imageProvider,
-                                  child: imageProvider == null
-                                      ? Text(
-                                          nombres
-                                              .map(
-                                                (n) => n.isNotEmpty ? n[0] : '',
-                                              )
-                                              .take(2)
-                                              .join()
-                                              .toUpperCase(),
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        )
-                                      : null,
-                                );
-                              }
-
-                              return CircleAvatar(
-                                radius: 22,
-                                backgroundColor: rosa,
-                                child: Text(
-                                  nombres
-                                      .map((n) => n.isNotEmpty ? n[0] : '')
-                                      .take(2)
-                                      .join()
-                                      .toUpperCase(),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              );
-                            },
                           ),
                         ],
                       ),
-                      if (adminId.isNotEmpty) ...[
-                        const SizedBox(height: 14),
-                        FutureBuilder<DocumentSnapshot>(
-                          future: FirebaseFirestore.instance
-                              .collection('Administradores')
-                              .doc(adminId)
-                              .get(),
-                          builder: (context, snapAdmin) {
-                            final dataAdmin =
-                                snapAdmin.data?.data() as Map<String, dynamic>?;
-                            final nombreAdmin =
-                                dataAdmin?['nombre']?.toString() ??
-                                dataAdmin?['negocio']?.toString() ??
-                                'Emprendimiento Oficial';
-                            final telefonoAdmin =
-                                dataAdmin?['telefono']?.toString() ?? '';
+                    ),
+                    StreamBuilder<String?>(
+                      stream: PerfilFotoService.fotoStream(
+                        FirebaseAuth.instance.currentUser?.uid,
+                      ),
+                      builder: (context, fotoSnapshot) {
+                        final fotoData =
+                            fotoSnapshot.data ??
+                            cliente['fotoBase64']?.toString() ??
+                            cliente['fotoUrl']?.toString();
 
-                            return Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: const Color(0xFFE5DCF5),
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: violeta.withValues(alpha: 0.04),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(9),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF1EAFE),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Icon(
-                                      Icons.storefront_rounded,
-                                      color: violeta,
-                                      size: 22,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        const Text(
-                                          'TIENDA / EMPRENDEDOR',
-                                          style: TextStyle(
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.bold,
-                                            color: violeta,
-                                            letterSpacing: 0.8,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          nombreAdmin,
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
-                                            color: oscuro,
-                                          ),
-                                        ),
-                                        if (telefonoAdmin.isNotEmpty) ...[
-                                          const SizedBox(height: 1),
-                                          Text(
-                                            'Contacto: $telefonoAdmin',
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              color: Colors.black54,
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF1EAFE),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: const Text(
-                                      'Conectado',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: violeta,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                      const SizedBox(height: 22),
+                        if (fotoData != null && fotoData.isNotEmpty) {
+                          ImageProvider? imageProvider;
+                          if (fotoData.startsWith('http://') ||
+                              fotoData.startsWith('https://')) {
+                            imageProvider = NetworkImage(fotoData);
+                          } else {
+                            try {
+                              final cleanBase64 = fotoData.contains(',')
+                                  ? fotoData.split(',').last
+                                  : fotoData;
+                              imageProvider = MemoryImage(
+                                base64Decode(cleanBase64),
+                              );
+                            } catch (_) {
+                              imageProvider = null;
+                            }
+                          }
 
-                      Container(
-                        padding: const EdgeInsets.all(22),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [
-                              Color(0xFF6440AB),
-                              Color(0xFF9A69C6),
-                              rosa,
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Tu saldo pendiente',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            cargandoFinanzas
-                                ? const Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 8),
-                                    child: SizedBox(
-                                      width: 22,
-                                      height: 22,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              Colors.white,
-                                            ),
-                                      ),
-                                    ),
-                                  )
-                                : Text(
-                                    ClientService.dinero(saldo),
+                          return CircleAvatar(
+                            radius: 22,
+                            backgroundColor: rosa,
+                            backgroundImage: imageProvider,
+                            child: imageProvider == null
+                                ? Text(
+                                    nombres
+                                        .map(
+                                          (n) => n.isNotEmpty ? n[0] : '',
+                                        )
+                                        .take(2)
+                                        .join()
+                                        .toUpperCase(),
                                     style: const TextStyle(
                                       color: Colors.white,
-                                      fontSize: 36,
                                       fontWeight: FontWeight.bold,
                                     ),
-                                  ),
-                            Text(
-                              cargandoFinanzas
-                                  ? 'Actualizando compras...'
-                                  : 'Por $prendas prendas compradas',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
+                                  )
+                                : null,
+                          );
+                        }
+
+                        return CircleAvatar(
+                          radius: 22,
+                          backgroundColor: rosa,
+                          child: Text(
+                            nombres
+                                .map((n) => n.isNotEmpty ? n[0] : '')
+                                .take(2)
+                                .join()
+                                .toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                if (adminId.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  FutureBuilder<DocumentSnapshot>(
+                    future: FirebaseFirestore.instance
+                        .collection('Administradores')
+                        .doc(adminId)
+                        .get(),
+                    builder: (context, snapAdmin) {
+                      final dataAdmin =
+                          snapAdmin.data?.data() as Map<String, dynamic>?;
+                      final nombreAdmin =
+                          dataAdmin?['nombre']?.toString() ??
+                          dataAdmin?['negocio']?.toString() ??
+                          'Emprendimiento Oficial';
+                      final telefonoAdmin =
+                          dataAdmin?['telefono']?.toString() ?? '';
+
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFFE5DCF5),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: violeta.withValues(alpha: 0.04),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(9),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1EAFE),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.storefront_rounded,
+                                color: violeta,
+                                size: 22,
                               ),
                             ),
-                            const SizedBox(height: 22),
-                            const Text(
-                              'Tu estado de cuenta se actualiza con tus compras y pagos.',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'TIENDA / EMPRENDEDOR',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: violeta,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    nombreAdmin,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: oscuro,
+                                    ),
+                                  ),
+                                  if (telefonoAdmin.isNotEmpty) ...[
+                                    const SizedBox(height: 1),
+                                    Text(
+                                      'Contacto: $telefonoAdmin',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.black54,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1EAFE),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Text(
+                                'Conectado',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: violeta,
+                                ),
                               ),
                             ),
                           ],
                         ),
+                      );
+                    },
+                  ),
+                ],
+                const SizedBox(height: 22),
+
+                Container(
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(0xFF6440AB),
+                        Color(0xFF9A69C6),
+                        rosa,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Tu saldo pendiente',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
                       ),
-                      const SizedBox(height: 12),
-
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _Resumen(
-                              titulo: 'Total de compras',
-                              valor: cargandoFinanzas
-                                  ? '...'
-                                  : ClientService.dinero(totalComprado),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _Resumen(
-                              titulo: 'Total pagado',
-                              valor: cargandoFinanzas
-                                  ? '...'
-                                  : ClientService.dinero(totalPagado),
-                              color: Colors.teal,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                        stream: adminId.isEmpty
-                            ? null
-                            : FirebaseFirestore.instance
-                                  .collection('Administradores')
-                                  .doc(adminId)
-                                  .snapshots(),
-                        builder: (context, tiendaSnapshot) {
-                          final tienda = tiendaSnapshot.data?.data() ?? {};
-                          final nombreTienda = tienda['nombreEmprendimiento']
-                              ?.toString()
-                              .trim();
-                          final direccionTienda =
-                              tienda['direccionTienda']?.toString().trim() ??
-                              '';
-                          final latitud = (tienda['latitudTienda'] as num?)
-                              ?.toDouble();
-                          final longitud = (tienda['longitudTienda'] as num?)
-                              ?.toDouble();
-                          final tieneUbicacion =
-                              latitud != null && longitud != null;
-
-                          return Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: _tarjeta(),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                InkWell(
-                                  borderRadius: BorderRadius.circular(12),
-                                  onTap: () => _mostrarMapaTienda(
-                                    context,
-                                    nombre: nombreTienda ?? '',
-                                    direccion: direccionTienda,
-                                    latitud: latitud,
-                                    longitud: longitud,
+                      const SizedBox(height: 8),
+                      cargandoFinanzas
+                          ? const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
                                   ),
-                                  child: Row(
+                                ),
+                              ),
+                            )
+                          : Text(
+                              ClientService.dinero(saldo),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 36,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                      Text(
+                        cargandoFinanzas
+                            ? 'Actualizando compras...'
+                            : 'Por $prendas prendas compradas',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      const Text(
+                        'Tu estado de cuenta se actualiza con tus compras y pagos.',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: _Resumen(
+                        titulo: 'Total de compras',
+                        valor: cargandoFinanzas
+                            ? '...'
+                            : ClientService.dinero(totalComprado),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _Resumen(
+                        titulo: 'Total pagado',
+                        valor: cargandoFinanzas
+                            ? '...'
+                            : ClientService.dinero(totalPagado),
+                        color: Colors.teal,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // ── Tarjeta VISÍTANOS con ubicación ──────────────────────────
+                StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: adminId.isEmpty
+                      ? null
+                      : FirebaseFirestore.instance
+                            .collection('Administradores')
+                            .doc(adminId)
+                            .snapshots(),
+                  builder: (context, tiendaSnapshot) {
+                    final tienda = tiendaSnapshot.data?.data() ?? {};
+
+                    // Leer latitud y longitud con múltiples posibles nombres de campo
+                    double? latitud =
+                        (tienda['latitudTienda'] as num?)?.toDouble() ??
+                        (tienda['latitud'] as num?)?.toDouble();
+                    double? longitud =
+                        (tienda['longitudTienda'] as num?)?.toDouble() ??
+                        (tienda['longitud'] as num?)?.toDouble();
+                    if ((latitud == null || longitud == null) &&
+                        tienda['ubicacion_tienda'] is Map) {
+                      final u = tienda['ubicacion_tienda'] as Map;
+                      latitud ??= (u['latitud'] as num?)?.toDouble();
+                      longitud ??= (u['longitud'] as num?)?.toDouble();
+                    }
+
+                    final nombreTienda = tienda['nombreEmprendimiento']
+                        ?.toString()
+                        .trim();
+                    String direccionTienda =
+                        tienda['direccionTienda']?.toString().trim() ?? '';
+                    if (direccionTienda.isEmpty &&
+                        tienda['ubicacion_tienda'] is Map) {
+                      direccionTienda =
+                          (tienda['ubicacion_tienda'] as Map)['direccion']
+                              ?.toString()
+                              .trim() ??
+                          '';
+                    }
+
+                    final tieneUbicacion =
+                        latitud != null &&
+                        longitud != null &&
+                        !(latitud == 0 && longitud == 0);
+
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: _tarjeta(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => _mostrarMapaTienda(
+                              context,
+                              nombre: nombreTienda ?? '',
+                              direccion: direccionTienda,
+                              latitud: latitud,
+                              longitud: longitud,
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.storefront_outlined,
+                                  color: violeta,
+                                  size: 36,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      const Icon(
-                                        Icons.storefront_outlined,
-                                        color: violeta,
-                                        size: 36,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            const Text(
-                                              'VISÍTANOS',
-                                              style: TextStyle(
-                                                color: violeta,
-                                                fontSize: 10,
-                                                letterSpacing: 1,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 5),
-                                            Text(
-                                              nombreTienda?.isNotEmpty == true
-                                                  ? nombreTienda!
-                                                  : 'Tienda del emprendedor',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: oscuro,
-                                              ),
-                                            ),
-                                            Text(
-                                              direccionTienda.isNotEmpty
-                                                  ? direccionTienda
-                                                  : 'Dirección pendiente',
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                                color: Colors.grey,
-                                              ),
-                                            ),
-                                          ],
+                                      const Text(
+                                        'VISÍTANOS',
+                                        style: TextStyle(
+                                          color: violeta,
+                                          fontSize: 10,
+                                          letterSpacing: 1,
+                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                      const SizedBox(width: 8),
-                                      const Icon(
-                                        Icons.map_outlined,
-                                        color: violeta,
-                                        size: 18,
+                                      const SizedBox(height: 5),
+                                      Text(
+                                        nombreTienda?.isNotEmpty == true
+                                            ? nombreTienda!
+                                            : 'Tienda del emprendedor',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: oscuro,
+                                        ),
+                                      ),
+                                      Text(
+                                        direccionTienda.isNotEmpty
+                                            ? direccionTienda
+                                            : 'Dirección pendiente',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey,
+                                        ),
                                       ),
                                     ],
                                   ),
                                 ),
-                                if (tieneUbicacion) ...[
-                                  const SizedBox(height: 14),
-                                  StoreLocationPreview(
-                                    latitude: latitud,
-                                    longitude: longitud,
-                                    height: 180,
-                                  ),
-                                ] else if (!tiendaSnapshot.hasData &&
-                                    adminId.isNotEmpty) ...[
-                                  const SizedBox(height: 12),
-                                  const LinearProgressIndicator(minHeight: 2),
-                                ] else ...[
-                                  const SizedBox(height: 12),
-                                  const Text(
-                                    'La tienda aún no ha compartido su ubicación.',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ],
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.map_outlined,
+                                  color: violeta,
+                                  size: 18,
+                                ),
                               ],
                             ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 22),
-
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text(
-                              'Última compra',
+                          ),
+                          if (tieneUbicacion) ...[
+                            const SizedBox(height: 14),
+                            StoreLocationPreview(
+                              latitude: latitud,
+                              longitude: longitud,
+                              height: 180,
+                            ),
+                          ] else if (adminId.isNotEmpty &&
+                              !tiendaSnapshot.hasData) ...[
+                            const SizedBox(height: 12),
+                            const LinearProgressIndicator(minHeight: 2),
+                          ] else if (adminId.isEmpty) ...[
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Vincula tu cuenta a una tienda para ver su ubicación.',
                               style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: oscuro,
+                                fontSize: 11,
+                                color: Colors.grey,
                               ),
                             ),
-                          ),
-                          Text(
-                            cargandoFinanzas
-                                ? '...'
-                                : '${compras.length} registros',
-                            style: const TextStyle(
-                              color: violeta,
-                              fontSize: 12,
+                          ] else ...[
+                            const SizedBox(height: 12),
+                            const Text(
+                              'La tienda aún no ha registrado su ubicación.',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey,
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
-                      const SizedBox(height: 10),
+                    );
+                  },
+                ),
+                const SizedBox(height: 22),
 
-                      if (cargandoFinanzas)
-                        const _TarjetaVacia(
-                          mensaje: 'Consultando última compra...',
-                        )
-                      else if (ultimaCompra == null)
-                        const _TarjetaVacia(
-                          mensaje: 'Todavía no tienes compras registradas.',
-                        )
-                      else
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: _tarjeta(),
-                          child: Row(
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Última compra',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: oscuro,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      cargandoFinanzas
+                          ? '...'
+                          : '${compras.length} registros',
+                      style: const TextStyle(
+                        color: violeta,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                if (cargandoFinanzas)
+                  const _TarjetaVacia(
+                    mensaje: 'Consultando última compra...',
+                  )
+                else if (ultimaCompra == null)
+                  const _TarjetaVacia(
+                    mensaje: 'Todavía no tienes compras registradas.',
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: _tarjeta(),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.receipt_long_outlined,
+                          color: violeta,
+                          size: 28,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(
-                                Icons.receipt_long_outlined,
-                                color: violeta,
-                                size: 28,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      (ultimaCompra['descripcion'] ??
-                                              ultimaCompra['prendaNombre'] ??
-                                              'Compra registrada')
-                                          .toString(),
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                    Text(
-                                      '${ClientService.fecha(ultimaCompra['fecha']).day}/'
-                                      '${ClientService.fecha(ultimaCompra['fecha']).month}/'
-                                      '${ClientService.fecha(ultimaCompra['fecha']).year}',
-                                      style: const TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 10,
-                                      ),
-                                    ),
-                                  ],
+                              Text(
+                                (ultimaCompra['descripcion'] ??
+                                        ultimaCompra['prendaNombre'] ??
+                                        'Compra registrada')
+                                    .toString(),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
                                 ),
                               ),
                               Text(
-                                ClientService.dinero(_subtotal(ultimaCompra)),
+                                '${ClientService.fecha(ultimaCompra['fecha']).day}/'
+                                '${ClientService.fecha(ultimaCompra['fecha']).month}/'
+                                '${ClientService.fecha(ultimaCompra['fecha']).year}',
                                 style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey,
+                                  fontSize: 10,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                    ],
-                  );
-                },
-              );
-            },
-          );
-        },
-      ),
+                        Text(
+                          ClientService.dinero(_subtotal(ultimaCompra)),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -835,14 +974,23 @@ class _SinFicha extends StatelessWidget {
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
-      return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        future: FirebaseFirestore.instance
-            .collection('secretarios')
-            .doc(uid)
-            .get(),
-        builder: (context, secretarioSnapshot) {
-          final adminId =
-              secretarioSnapshot.data?.data()?['adminId']?.toString() ?? '';
+      return FutureBuilder<String>(
+        future: () async {
+          try {
+            final snapSec = await FirebaseFirestore.instance
+                .collection('secretarios')
+                .doc(uid)
+                .get();
+            final idSec = snapSec.data()?['adminId']?.toString() ?? '';
+            if (idSec.isNotEmpty) return idSec;
+          } catch (_) {}
+          return ClientHomeScreen._resolverAdminId(
+            clienteId: '',
+            codigoLive: '',
+          );
+        }(),
+        builder: (context, adminIdSnapshot) {
+          final adminId = adminIdSnapshot.data ?? '';
           if (adminId.isEmpty) return _mensajeSinFicha();
 
           return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
@@ -852,9 +1000,22 @@ class _SinFicha extends StatelessWidget {
                 .snapshots(),
             builder: (context, adminSnapshot) {
               final tienda = adminSnapshot.data?.data() ?? {};
-              final latitud = (tienda['latitudTienda'] as num?)?.toDouble();
-              final longitud = (tienda['longitudTienda'] as num?)?.toDouble();
-              final tieneUbicacion = latitud != null && longitud != null;
+              double? latitud =
+                  (tienda['latitudTienda'] as num?)?.toDouble() ??
+                  (tienda['latitud'] as num?)?.toDouble();
+              double? longitud =
+                  (tienda['longitudTienda'] as num?)?.toDouble() ??
+                  (tienda['longitud'] as num?)?.toDouble();
+              if ((latitud == null || longitud == null) &&
+                  tienda['ubicacion_tienda'] is Map) {
+                final u = tienda['ubicacion_tienda'] as Map;
+                latitud ??= (u['latitud'] as num?)?.toDouble();
+                longitud ??= (u['longitud'] as num?)?.toDouble();
+              }
+              final tieneUbicacion =
+                  latitud != null &&
+                  longitud != null &&
+                  !(latitud == 0 && longitud == 0);
 
               return ListView(
                 padding: const EdgeInsets.fromLTRB(18, 20, 18, 24),
@@ -878,6 +1039,7 @@ class _SinFicha extends StatelessWidget {
                           const SizedBox(height: 5),
                           Text(
                             tienda['nombreEmprendimiento']?.toString() ??
+                                tienda['negocio']?.toString() ??
                                 'Tienda',
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),

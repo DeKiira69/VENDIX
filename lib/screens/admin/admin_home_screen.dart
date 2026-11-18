@@ -638,107 +638,312 @@ class AdminStoreLocationScreen extends StatelessWidget {
 
   const AdminStoreLocationScreen({super.key, required this.admin});
 
+  Future<void> _abrirSelectorUbicacion(
+    BuildContext context, {
+    StoreLocation? ubicacionActual,
+    String? direccionActual,
+  }) async {
+    final seleccion = await StoreLocationPickerPage.show(
+      context,
+      initialLocation: ubicacionActual,
+      queryAddress: direccionActual ?? '',
+      title: 'Ubicación de tu tienda',
+    );
+
+    if (seleccion == null) return;
+
+    try {
+      final db = FirebaseFirestore.instance;
+      final batch = db.batch();
+      final docAdmin = db.collection('Administradores').doc(admin.id);
+      final docUser = db.collection('usuarios').doc(admin.id);
+
+      final dir = (seleccion.address ?? direccionActual ?? '').trim();
+      final datos = {
+        'direccionTienda': dir,
+        'latitudTienda': seleccion.latitude,
+        'longitudTienda': seleccion.longitude,
+        'direccion': dir,
+        'latitud': seleccion.latitude,
+        'longitud': seleccion.longitude,
+        'ubicacion_tienda': {
+          'direccion': dir,
+          'latitud': seleccion.latitude,
+          'longitud': seleccion.longitude,
+        },
+        'actualizadoEn': FieldValue.serverTimestamp(),
+      };
+
+      batch.set(docAdmin, datos, SetOptions(merge: true));
+      batch.set(docUser, datos, SetOptions(merge: true));
+      await batch.commit();
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('📍 ¡Ubicación de la tienda guardada con éxito!'),
+            backgroundColor: AppTheme.violet,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No se pudo guardar la ubicación: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        title: const Text('Mi ubicación'),
-        backgroundColor: Colors.white,
-        foregroundColor: AppTheme.violet,
-      ),
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('Administradores')
-            .doc(admin.id)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return const Center(
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('Administradores')
+          .doc(admin.id)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Scaffold(
+            backgroundColor: AppTheme.background,
+            appBar: AppBar(
+              title: const Text('Mi ubicación'),
+              backgroundColor: Colors.white,
+              foregroundColor: AppTheme.violet,
+            ),
+            body: const Center(
               child: Text('No se pudo cargar la ubicación de la tienda.'),
-            );
-          }
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
+            ),
+          );
+        }
+        if (!snapshot.hasData) {
+          return Scaffold(
+            backgroundColor: AppTheme.background,
+            appBar: AppBar(
+              title: const Text('Mi ubicación'),
+              backgroundColor: Colors.white,
+              foregroundColor: AppTheme.violet,
+            ),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
 
-          final tienda = snapshot.data?.data() ?? const <String, dynamic>{};
-          final latitud = (tienda['latitudTienda'] as num?)?.toDouble();
-          final longitud = (tienda['longitudTienda'] as num?)?.toDouble();
-          final direccion = tienda['direccionTienda']?.toString().trim() ?? '';
-          final tieneUbicacion =
-              latitud != null &&
-              longitud != null &&
-              !(latitud == 0 && longitud == 0);
+        final tienda = snapshot.data?.data() ?? const <String, dynamic>{};
+        double? latitud;
+        double? longitud;
+        String direccion = '';
 
-          if (!tieneUbicacion) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.location_off_outlined,
-                      size: 48,
-                      color: AppTheme.muted,
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Aún no has registrado la ubicación de tu tienda.',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => AdminProfileScreen(admin: admin),
-                        ),
-                      ),
-                      icon: const Icon(Icons.edit_location_alt_outlined),
-                      label: const Text('Configurar ubicación'),
-                    ),
-                  ],
-                ),
-              ),
-            );
+        if (tienda['latitudTienda'] != null && tienda['longitudTienda'] != null) {
+          latitud = (tienda['latitudTienda'] is num)
+              ? (tienda['latitudTienda'] as num).toDouble()
+              : double.tryParse(tienda['latitudTienda'].toString());
+          longitud = (tienda['longitudTienda'] is num)
+              ? (tienda['longitudTienda'] as num).toDouble()
+              : double.tryParse(tienda['longitudTienda'].toString());
+        }
+        if (latitud == null || longitud == null) {
+          if (tienda['latitud'] != null && tienda['longitud'] != null) {
+            latitud = (tienda['latitud'] is num)
+                ? (tienda['latitud'] as num).toDouble()
+                : double.tryParse(tienda['latitud'].toString());
+            longitud = (tienda['longitud'] is num)
+                ? (tienda['longitud'] as num).toDouble()
+                : double.tryParse(tienda['longitud'].toString());
           }
+        }
+        if ((latitud == null || longitud == null) &&
+            tienda['ubicacion_tienda'] is Map) {
+          final u = tienda['ubicacion_tienda'] as Map;
+          if (u['latitud'] != null && u['longitud'] != null) {
+            latitud = (u['latitud'] is num)
+                ? (u['latitud'] as num).toDouble()
+                : double.tryParse(u['latitud'].toString());
+            longitud = (u['longitud'] is num)
+                ? (u['longitud'] as num).toDouble()
+                : double.tryParse(u['longitud'].toString());
+          }
+          if (direccion.isEmpty && u['direccion'] != null) {
+            direccion = u['direccion'].toString().trim();
+          }
+        }
+        if (direccion.isEmpty) {
+          direccion = (tienda['direccionTienda'] ??
+                  tienda['direccion'] ??
+                  '')
+              .toString()
+              .trim();
+        }
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (direccion.isNotEmpty)
-                Container(
-                  color: Colors.white,
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.location_on, color: AppTheme.violet),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          direccion,
-                          style: const TextStyle(color: AppTheme.dark),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) => StoreLocationPreview(
-                    latitude: latitud,
-                    longitude: longitud,
-                    height: constraints.maxHeight,
-                  ),
+        final tieneUbicacion = latitud != null &&
+            longitud != null &&
+            !(latitud == 0 && longitud == 0);
+        final lat = latitud ?? 0.0;
+        final lng = longitud ?? 0.0;
+
+        return Scaffold(
+          backgroundColor: AppTheme.background,
+          appBar: AppBar(
+            title: const Text('Mi ubicación'),
+            backgroundColor: Colors.white,
+            foregroundColor: AppTheme.violet,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.edit_location_alt_rounded),
+                tooltip: 'Cambiar ubicación',
+                onPressed: () => _abrirSelectorUbicacion(
+                  context,
+                  ubicacionActual: tieneUbicacion
+                      ? StoreLocation(
+                          latitude: lat,
+                          longitude: lng,
+                          address: direccion,
+                        )
+                      : null,
+                  direccionActual: direccion,
                 ),
               ),
             ],
-          );
-        },
-      ),
+          ),
+          floatingActionButton: tieneUbicacion
+              ? FloatingActionButton.extended(
+                  heroTag: 'fab_cambiar_ubicacion_admin',
+                  backgroundColor: AppTheme.violet,
+                  foregroundColor: Colors.white,
+                  icon: const Icon(Icons.edit_location_alt_rounded),
+                  label: const Text('Cambiar ubicación (GPS / Mapa)'),
+                  onPressed: () => _abrirSelectorUbicacion(
+                    context,
+                    ubicacionActual: StoreLocation(
+                      latitude: lat,
+                      longitude: lng,
+                      address: direccion,
+                    ),
+                    direccionActual: direccion,
+                  ),
+                )
+              : null,
+          body: !tieneUbicacion
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.location_off_outlined,
+                          size: 52,
+                          color: AppTheme.muted,
+                        ),
+                        const SizedBox(height: 14),
+                        const Text(
+                          'Aún no has registrado la ubicación de tu tienda.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: AppTheme.dark,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Tus clientes verán esta ubicación en tiempo real en la app y el asistente virtual podrá guiarlos con precisión.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 13, color: Colors.grey),
+                        ),
+                        const SizedBox(height: 20),
+                        FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppTheme.violet,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 22,
+                              vertical: 13,
+                            ),
+                          ),
+                          onPressed: () => _abrirSelectorUbicacion(context),
+                          icon: const Icon(Icons.my_location_rounded),
+                          label: const Text(
+                            'Definir ubicación (GPS / Mapa)',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextButton.icon(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AdminProfileScreen(admin: admin),
+                            ),
+                          ),
+                          icon: const Icon(Icons.account_circle_outlined, size: 18),
+                          label: const Text('Configurar datos en mi perfil'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (direccion.isNotEmpty)
+                      Container(
+                        color: Colors.white,
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.location_on, color: AppTheme.violet),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                direccion,
+                                style: const TextStyle(
+                                  color: AppTheme.dark,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            InkWell(
+                              onTap: () => _abrirSelectorUbicacion(
+                                context,
+                                ubicacionActual: StoreLocation(
+                                  latitude: lat,
+                                  longitude: lng,
+                                  address: direccion,
+                                ),
+                                direccionActual: direccion,
+                              ),
+                              child: const Padding(
+                                padding: EdgeInsets.all(4.0),
+                                child: Text(
+                                  'Cambiar',
+                                  style: TextStyle(
+                                    color: AppTheme.violet,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) => StoreLocationPreview(
+                          latitude: lat,
+                          longitude: lng,
+                          height: constraints.maxHeight,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+        );
+      },
     );
   }
 }

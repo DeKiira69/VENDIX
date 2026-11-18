@@ -34,10 +34,19 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   }) async {
     try {
       final db = FirebaseFirestore.instance;
+      final dir = direccion.trim();
       final cambios = {
-        'direccionTienda': direccion.trim(),
+        'direccionTienda': dir,
         'latitudTienda': ubicacion.latitude,
         'longitudTienda': ubicacion.longitude,
+        'direccion': dir,
+        'latitud': ubicacion.latitude,
+        'longitud': ubicacion.longitude,
+        'ubicacion_tienda': {
+          'direccion': dir,
+          'latitud': ubicacion.latitude,
+          'longitud': ubicacion.longitude,
+        },
         'actualizadoEn': FieldValue.serverTimestamp(),
       };
       final lote = db.batch();
