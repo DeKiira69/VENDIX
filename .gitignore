@@ -55,3 +55,8 @@ backups/
 *.zip
 apk/
 *.apk
+
+# Credenciales y secretos privados
+lib/secrets.dart
+*.env
+android/app/vendix_key.jks

@@ -19,7 +19,7 @@
 
 <p align="center">
   <a href="https://github.com/DeKiira69/VENDIX/releases/latest/download/VENDIX_release.apk">
-    <img src="https://img.shields.io/badge/📲_Descargar_APK-v1.0.0-00C853?style=for-the-badge&logo=android&logoColor=white" alt="Descargar APK" />
+    <img src="https://img.shields.io/badge/📲_Descargar_APK-v1.1.0-00C853?style=for-the-badge&logo=android&logoColor=white" alt="Descargar APK" />
   </a>
 </p>
 

@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../secretary/secretary_shell.dart';
 import 'solicitud_empleo_screen.dart';
+import 'client_welcome_hub_screen.dart';
+import 'enter_code_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -47,6 +49,9 @@ class ClientProfileScreen extends StatelessWidget {
           final telefono = (cliente['telefono'] ?? 'Sin teléfono').toString();
           final direccion = (cliente['direccion'] ?? 'Sin dirección').toString();
           final usuarioId = usuario?.uid ?? cliente['id']?.toString() ?? '';
+          final clienteDocId = cliente['id']?.toString() ?? usuarioId;
+          final codigoLive = cliente['codigoLive']?.toString() ?? '';
+          final adminId = cliente['adminId']?.toString() ?? '';
 
           final iniciales = nombre
               .trim()
@@ -167,6 +172,172 @@ class ClientProfileScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 22),
+
+              // ── Gestión de Emprendimiento Vinculado ──
+              if (adminId.isNotEmpty || codigoLive.isNotEmpty) ...[
+                FutureBuilder<DocumentSnapshot>(
+                  future: adminId.isNotEmpty
+                      ? FirebaseFirestore.instance.collection('Administradores').doc(adminId).get()
+                      : (codigoLive.isNotEmpty
+                          ? FirebaseFirestore.instance
+                              .collection('secretarios')
+                              .where('codigoLive', isEqualTo: codigoLive)
+                              .limit(1)
+                              .get()
+                              .then((snap) {
+                                if (snap.docs.isNotEmpty) {
+                                  final aId = snap.docs.first.data()['adminId']?.toString() ?? '';
+                                  if (aId.isNotEmpty) {
+                                    return FirebaseFirestore.instance
+                                        .collection('Administradores')
+                                        .doc(aId)
+                                        .get();
+                                  }
+                                }
+                                return FirebaseFirestore.instance
+                                    .collection('Administradores')
+                                    .doc('inexistente')
+                                    .get();
+                              })
+                          : null),
+                  builder: (context, adminSnap) {
+                    final dataAdmin = adminSnap.data?.data() as Map<String, dynamic>?;
+                    final nombreTienda = dataAdmin?['nombreEmprendimiento']?.toString() ??
+                        dataAdmin?['nombre']?.toString() ??
+                        'Tienda Vinculada';
+                    final nombrePropietario = [
+                      dataAdmin?['nombre']?.toString() ?? '',
+                      dataAdmin?['apellido']?.toString() ?? '',
+                    ].where((s) => s.isNotEmpty).join(' ');
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(16),
+                      decoration: _tarjeta(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF3E5F5),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(Icons.storefront, color: violeta, size: 20),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'EMPRENDIMIENTO ASOCIADO',
+                                      style: TextStyle(
+                                        color: Color(0xFF81798D),
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.8,
+                                      ),
+                                    ),
+                                    Text(
+                                      nombreTienda,
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              if (codigoLive.isNotEmpty) ...[
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF0E8FC),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    'Código: $codigoLive',
+                                    style: const TextStyle(
+                                      color: violeta,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                              if (nombrePropietario.isNotEmpty)
+                                Expanded(
+                                  child: Text(
+                                    'Dueño: $nombrePropietario',
+                                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => const EnterCodeScreen()),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.sync_alt, size: 16),
+                                  label: const Text('Cambiar Tienda', style: TextStyle(fontSize: 12)),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: violeta,
+                                    side: const BorderSide(color: Color(0xFFD6C4F4)),
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () => _desvincularDeEmprendimiento(
+                                    context,
+                                    usuarioId: usuarioId,
+                                    clienteDocId: clienteDocId,
+                                    nombreTienda: nombreTienda,
+                                  ),
+                                  icon: const Icon(Icons.link_off, size: 16),
+                                  label: const Text('Desvincularme', style: TextStyle(fontSize: 12)),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.red.shade700,
+                                    side: BorderSide(color: Colors.red.shade200),
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
 
               // ── Gestión Laboral: Trabajar como Secretario ──
               StreamBuilder<QuerySnapshot>(
@@ -357,6 +528,111 @@ class ClientProfileScreen extends StatelessWidget {
         },
       ),
     );
+  }
+
+  static Future<void> _desvincularDeEmprendimiento(
+    BuildContext context, {
+    required String usuarioId,
+    required String clienteDocId,
+    required String nombreTienda,
+  }) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: const [
+            Icon(Icons.link_off, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Flexible(child: Text('Desvincularse de la tienda')),
+          ],
+        ),
+        content: Text(
+          '¿Deseas dejar de ser cliente de "$nombreTienda"?\n\n'
+          '• Ya no verás el catálogo ni los pedidos en vivo de esta tienda.\n'
+          '• Tu cuenta personal y tu perfil se conservarán intactos.\n'
+          '• Podrás unirte a otro emprendimiento ingresando un nuevo código en cualquier momento.',
+          style: const TextStyle(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+            ),
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('Desvincularme'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return;
+
+    try {
+      final db = FirebaseFirestore.instance;
+      final batch = db.batch();
+
+      final actualizacionLimpieza = {
+        'codigoLive': '',
+        'adminId': '',
+        'secretarioId': '',
+        'fecha_desvinculacion': FieldValue.serverTimestamp(),
+      };
+
+      if (usuarioId.isNotEmpty) {
+        batch.set(
+          db.collection('usuarios').doc(usuarioId),
+          actualizacionLimpieza,
+          SetOptions(merge: true),
+        );
+      }
+
+      if (clienteDocId.isNotEmpty) {
+        batch.set(
+          db.collection('clientes').doc(clienteDocId),
+          actualizacionLimpieza,
+          SetOptions(merge: true),
+        );
+      }
+
+      if (usuarioId.isNotEmpty && clienteDocId != usuarioId) {
+        batch.set(
+          db.collection('clientes').doc(usuarioId),
+          actualizacionLimpieza,
+          SetOptions(merge: true),
+        );
+      }
+
+      await batch.commit();
+      ClientService.limpiarCache();
+
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Te has desvinculado de "$nombreTienda" correctamente.'),
+          backgroundColor: const Color(0xFF6C4AB6),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const ClientWelcomeHubScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al desvincularse: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   static Widget _dato({
