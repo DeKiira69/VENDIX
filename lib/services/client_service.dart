@@ -6,12 +6,6 @@ class ClientService {
 
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // Stream caché para evitar abrir múltiples conexiones simultáneas
-  static Stream<Map<String, dynamic>?>? _clienteActualStream;
-  static String? _clienteActualUid;
-  static final Map<String, Stream<List<Map<String, dynamic>>>> _comprasStreamCache = {};
-  static final Map<String, Stream<List<Map<String, dynamic>>>> _pagosStreamCache = {};
-
   // Estado de la sesión activa del secretario (soporte multi-emprendimiento)
   static String? activeSecretaryAdminId;
   static String? activeSecretaryNombreEmprendimiento;
@@ -31,12 +25,8 @@ class ClientService {
     }
   }
 
-  /// Limpia los streams cacheados al cerrar sesión.
+  /// Limpia la sesión y estado al cerrar sesión.
   static void limpiarCache() {
-    _clienteActualStream = null;
-    _clienteActualUid = null;
-    _comprasStreamCache.clear();
-    _pagosStreamCache.clear();
     activeSecretaryAdminId = null;
     activeSecretaryNombreEmprendimiento = null;
     activeSecretaryAdminNombre = null;
@@ -49,20 +39,15 @@ class ClientService {
   // CLIENTES
   // ============================================================
 
-  // Busca la ficha del cliente vinculado a la cuenta actual con stream compartido.
+  // Busca la ficha del cliente vinculado a la cuenta actual en tiempo real sin deadlocks.
   static Stream<Map<String, dynamic>?> clienteActual() {
     final usuarioId = uid;
 
-    if (usuarioId == null) {
+    if (usuarioId == null || usuarioId.isEmpty) {
       return Stream.value(null);
     }
 
-    if (_clienteActualStream != null && _clienteActualUid == usuarioId) {
-      return _clienteActualStream!;
-    }
-
-    _clienteActualUid = usuarioId;
-    _clienteActualStream = _db
+    return _db
         .collection('clientes')
         .where('uid', isEqualTo: usuarioId)
         .limit(1)
@@ -72,10 +57,7 @@ class ClientService {
 
           final documento = resultado.docs.first;
           return {...documento.data(), 'id': documento.id};
-        })
-        .asBroadcastStream();
-
-    return _clienteActualStream!;
+        });
   }
 
   // Obtiene todos los clientes para el módulo de secretaria.
@@ -166,15 +148,13 @@ class ClientService {
   // COMPRAS
   // ============================================================
 
-  // Obtiene las compras de un cliente específico con broadcast stream.
+  // Obtiene las compras de un cliente específico en tiempo real directamente de Firestore.
   static Stream<List<Map<String, dynamic>>> compras(String clienteId) {
-    if (_comprasStreamCache.containsKey(clienteId)) {
-      return _comprasStreamCache[clienteId]!;
-    }
+    if (clienteId.trim().isEmpty) return Stream.value(const []);
 
-    final stream = _db
+    return _db
         .collection('compras')
-        .where('clienteId', isEqualTo: clienteId)
+        .where('clienteId', isEqualTo: clienteId.trim())
         .snapshots()
         .map((resultado) {
           final lista = resultado.docs.map((documento) {
@@ -184,11 +164,7 @@ class ClientService {
           lista.sort((a, b) => fecha(b['fecha']).compareTo(fecha(a['fecha'])));
 
           return lista;
-        })
-        .asBroadcastStream();
-
-    _comprasStreamCache[clienteId] = stream;
-    return stream;
+        });
   }
 
   // Registra una compra para un cliente.
@@ -225,15 +201,13 @@ class ClientService {
   // PAGOS
   // ============================================================
 
-  // Obtiene los pagos de un cliente específico con broadcast stream.
+  // Obtiene los pagos de un cliente específico en tiempo real directamente de Firestore.
   static Stream<List<Map<String, dynamic>>> pagos(String clienteId) {
-    if (_pagosStreamCache.containsKey(clienteId)) {
-      return _pagosStreamCache[clienteId]!;
-    }
+    if (clienteId.trim().isEmpty) return Stream.value(const []);
 
-    final stream = _db
+    return _db
         .collection('pagos')
-        .where('clienteId', isEqualTo: clienteId)
+        .where('clienteId', isEqualTo: clienteId.trim())
         .snapshots()
         .map((resultado) {
           final lista = resultado.docs.map((documento) {
@@ -243,11 +217,7 @@ class ClientService {
           lista.sort((a, b) => fecha(b['fecha']).compareTo(fecha(a['fecha'])));
 
           return lista;
-        })
-        .asBroadcastStream();
-
-    _pagosStreamCache[clienteId] = stream;
-    return stream;
+        });
   }
 
   // Registra un abono para un cliente.

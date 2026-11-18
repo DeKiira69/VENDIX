@@ -282,10 +282,13 @@ class _LoginScreenState extends State<LoginScreen> {
       final perfilDoc = await GoogleAuthService.obtenerPerfil(usuario.uid);
 
       if (!perfilDoc.exists || perfilDoc.data() == null) {
-        // Usuario nuevo con Google: preguntamos si es Cliente o Secretario
+        // Usuario nuevo con Google: completamos datos básicos y lo llevamos al Hub de bienvenida
         if (!mounted) return;
         setState(() => _cargando = false);
-        await _mostrarDialogoSeleccionRolGoogle(usuario);
+        await _mostrarModalDatosGoogle(
+          usuario: usuario,
+          rol: 'cliente',
+        );
         return;
       }
 
@@ -303,113 +306,6 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
-  }
-
-  /// Si es una cuenta Google nueva, le permitimos elegir si desea registrarse como Cliente o Secretario
-  Future<void> _mostrarDialogoSeleccionRolGoogle(User usuario) async {
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogCtx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: const Text(
-          'Elige tu tipo de cuenta',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '¡Hola ${usuario.displayName ?? ''}! Es tu primera vez con Google en VENDIX. ¿Cómo deseas usar la app?',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, color: textoSecundario),
-            ),
-            const SizedBox(height: 20),
-            ListTile(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: const BorderSide(color: Color(0xFFECE6F2)),
-              ),
-              leading: const CircleAvatar(
-                backgroundColor: Color(0xFFF3E5F5),
-                child: Icon(Icons.person, color: violeta),
-              ),
-              title: const Text(
-                'Soy Cliente',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              subtitle: const Text(
-                'Comprar y revisar pedidos en vivo',
-                style: TextStyle(fontSize: 11),
-              ),
-              onTap: () async {
-                Navigator.pop(dialogCtx);
-                await _mostrarModalDatosGoogle(
-                  usuario: usuario,
-                  rol: 'cliente',
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            ListTile(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: const BorderSide(color: Color(0xFFECE6F2)),
-              ),
-              leading: const CircleAvatar(
-                backgroundColor: Color(0xFFFFF3E0),
-                child: Icon(Icons.badge, color: Color(0xFFF39C12)),
-              ),
-              title: const Text(
-                'Soy Secretario (Operador)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              subtitle: const Text(
-                'Requiere aprobación previa del administrador',
-                style: TextStyle(fontSize: 11),
-              ),
-              onTap: () async {
-                Navigator.pop(dialogCtx);
-                await _mostrarModalDatosGoogle(
-                  usuario: usuario,
-                  rol: 'secretario',
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            ListTile(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: const BorderSide(color: Color(0xFFECE6F2)),
-              ),
-              leading: const CircleAvatar(
-                backgroundColor: Color(0xFFE8F5E9),
-                child: Icon(Icons.storefront, color: Color(0xFF2E7D32)),
-              ),
-              title: const Text(
-                'Soy Emprendedor (Administrador)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              subtitle: const Text(
-                'Gestionar tienda, inventario y secretarios',
-                style: TextStyle(fontSize: 11),
-              ),
-              onTap: () async {
-                Navigator.pop(dialogCtx);
-                if (!mounted) return;
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(
-                    builder: (_) => RegisterAdminScreen(googleUser: usuario),
-                  ),
-                  (route) => false,
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   /// Modal para completar Nombre, Apellido, Dirección (opcional) y Teléfono (opcional)
@@ -464,11 +360,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 18),
                   Text(
-                    rol == 'cliente'
-                        ? 'Completa tus datos de Cliente'
-                        : (rol == 'administrador'
-                              ? 'Completa tus datos de Emprendedor'
-                              : 'Completa tus datos de Secretario'),
+                    rol == 'administrador'
+                        ? 'Completa tus datos de Emprendedor'
+                        : 'Completa tus datos personales',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 18,

@@ -30,6 +30,7 @@ class ClientPurchasesScreen extends StatelessWidget {
 
           return StreamBuilder<List<Map<String, dynamic>>>(
             stream: ClientService.compras(cliente['id'] as String),
+            initialData: const [],
             builder: (context, comprasSnapshot) {
               if (comprasSnapshot.hasError) {
                 return const Center(
@@ -37,11 +38,12 @@ class ClientPurchasesScreen extends StatelessWidget {
                 );
               }
 
-              if (!comprasSnapshot.hasData) {
+              if (comprasSnapshot.connectionState == ConnectionState.waiting &&
+                  !comprasSnapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              final compras = comprasSnapshot.data!;
+              final compras = comprasSnapshot.data ?? [];
               final prendas = compras.fold<int>(
                 0,
                 (total, compra) =>
@@ -114,10 +116,13 @@ class ClientPurchasesScreen extends StatelessWidget {
                       physics: const NeverScrollableScrollPhysics(),
                       crossAxisSpacing: 10,
                       mainAxisSpacing: 10,
-                      childAspectRatio: 1.65,
+                      childAspectRatio: 1.38,
                       children: cantidades.entries.map((entrada) {
                         return Container(
-                          padding: const EdgeInsets.all(13),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
                           decoration: _tarjeta(),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,

@@ -317,6 +317,7 @@ class ClientProfileScreen extends StatelessWidget {
                                     usuarioId: usuarioId,
                                     clienteDocId: clienteDocId,
                                     nombreTienda: nombreTienda,
+                                    adminId: adminId,
                                   ),
                                   icon: const Icon(Icons.link_off, size: 16),
                                   label: const Text('Desvincularme', style: TextStyle(fontSize: 12)),
@@ -535,6 +536,7 @@ class ClientProfileScreen extends StatelessWidget {
     required String usuarioId,
     required String clienteDocId,
     required String nombreTienda,
+    required String adminId,
   }) async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -576,6 +578,13 @@ class ClientProfileScreen extends StatelessWidget {
       final db = FirebaseFirestore.instance;
       final batch = db.batch();
 
+      // Eliminar de la subcolección mis_tiendas
+      if (usuarioId.isNotEmpty && adminId.isNotEmpty) {
+        batch.delete(
+          db.collection('usuarios').doc(usuarioId).collection('mis_tiendas').doc(adminId),
+        );
+      }
+
       final actualizacionLimpieza = {
         'codigoLive': '',
         'adminId': '',
@@ -608,6 +617,46 @@ class ClientProfileScreen extends StatelessWidget {
       }
 
       await batch.commit();
+
+      // Verificar si quedan otras tiendas asociadas
+      if (usuarioId.isNotEmpty) {
+        final tiendasRestantes = await db
+            .collection('usuarios')
+            .doc(usuarioId)
+            .collection('mis_tiendas')
+            .limit(1)
+            .get();
+
+        if (tiendasRestantes.docs.isNotEmpty) {
+          // Activar la siguiente tienda disponible
+          final nuevaTienda = tiendasRestantes.docs.first.data();
+          final reactivar = {
+            'adminId': nuevaTienda['adminId']?.toString() ?? '',
+            'codigoLive': nuevaTienda['codigoLive']?.toString() ?? '',
+            'secretarioId': nuevaTienda['secretarioId']?.toString() ?? '',
+          };
+          final batchReactivar = db.batch();
+          batchReactivar.set(
+            db.collection('usuarios').doc(usuarioId),
+            reactivar,
+            SetOptions(merge: true),
+          );
+          batchReactivar.set(
+            db.collection('clientes').doc(usuarioId),
+            reactivar,
+            SetOptions(merge: true),
+          );
+          if (clienteDocId.isNotEmpty && clienteDocId != usuarioId) {
+            batchReactivar.set(
+              db.collection('clientes').doc(clienteDocId),
+              reactivar,
+              SetOptions(merge: true),
+            );
+          }
+          await batchReactivar.commit();
+        }
+      }
+
       ClientService.limpiarCache();
 
       if (!context.mounted) return;

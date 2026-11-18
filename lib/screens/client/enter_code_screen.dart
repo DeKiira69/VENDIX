@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../../services/client_service.dart';
 import 'client_shell.dart';
 
 /// Pantalla que se muestra cuando el cliente ya se registró pero aún
@@ -74,7 +75,51 @@ class _EnterCodeScreenState extends State<EnterCodeScreen> {
 
       final dataSec = querySec.docs.first.data();
       final secretarioId = querySec.docs.first.id;
-      final adminId = dataSec['adminId']?.toString() ?? '';
+
+      // Resolver adminId de forma ultra-robusta para evitar errores de ruta vacía
+      String adminId = dataSec['adminId']?.toString().trim() ?? '';
+      if (adminId.isEmpty && dataSec['administradorId'] != null) {
+        adminId = dataSec['administradorId'].toString().trim();
+      }
+      if (adminId.isEmpty && secretarioId.contains('_')) {
+        adminId = secretarioId.split('_').last.trim();
+      }
+      if (adminId.isEmpty) {
+        final secUid = dataSec['clienteId']?.toString() ?? dataSec['uid']?.toString() ?? '';
+        if (secUid.isNotEmpty) {
+          try {
+            final userDoc = await db.collection('usuarios').doc(secUid).get();
+            adminId = userDoc.data()?['adminId']?.toString().trim() ?? '';
+          } catch (_) {}
+        }
+      }
+
+      // Obtener datos del emprendimiento para mis_tiendas
+      String nombreEmprendimiento = dataSec['nombreEmprendimiento']?.toString().trim() ?? '';
+      String adminNombre = dataSec['adminNombre']?.toString().trim() ?? '';
+      if (adminId.isNotEmpty) {
+        try {
+          final adminDoc = await db.collection('Administradores').doc(adminId).get();
+          if (adminDoc.exists) {
+            final adminData = adminDoc.data() ?? {};
+            final nombreTienda = adminData['nombreEmprendimiento']?.toString().trim() ??
+                adminData['negocio']?.toString().trim() ?? '';
+            if (nombreTienda.isNotEmpty) {
+              nombreEmprendimiento = nombreTienda;
+            }
+            final nom = adminData['nombre']?.toString().trim() ?? '';
+            final ape = adminData['apellido']?.toString().trim() ?? '';
+            final nombreCompleto = [nom, ape].where((s) => s.isNotEmpty).join(' ');
+            if (nombreCompleto.isNotEmpty) {
+              adminNombre = nombreCompleto;
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (nombreEmprendimiento.isEmpty) {
+        nombreEmprendimiento = 'Tienda en Vivo';
+      }
 
       final actualizacion = {
         'adminId': adminId,
@@ -82,15 +127,37 @@ class _EnterCodeScreenState extends State<EnterCodeScreen> {
         'codigoLive': codigo,
       };
 
-      // Guardar vínculo en usuarios y clientes
+      // Guardar vínculo en usuarios, clientes Y mis_tiendas con merge seguro
       final lote = db.batch();
-      lote.update(db.collection('usuarios').doc(uid), actualizacion);
+      lote.set(
+        db.collection('usuarios').doc(uid),
+        actualizacion,
+        SetOptions(merge: true),
+      );
       lote.set(
         db.collection('clientes').doc(uid),
         actualizacion,
         SetOptions(merge: true),
       );
+
+      // Usar adminId si existe, o secretarioId como clave para la subcolección
+      final claveTienda = adminId.isNotEmpty ? adminId : secretarioId;
+      if (claveTienda.isNotEmpty) {
+        lote.set(
+          db.collection('usuarios').doc(uid).collection('mis_tiendas').doc(claveTienda),
+          {
+            'adminId': adminId.isNotEmpty ? adminId : claveTienda,
+            'nombreEmprendimiento': nombreEmprendimiento,
+            'adminNombre': adminNombre,
+            'codigoLive': codigo,
+            'secretarioId': secretarioId,
+            'fecha_asociacion': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }
       await lote.commit();
+      ClientService.limpiarCache();
 
       if (!mounted) return;
 

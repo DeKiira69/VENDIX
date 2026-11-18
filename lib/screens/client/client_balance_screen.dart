@@ -34,9 +34,11 @@ class ClientBalanceScreen extends StatelessWidget {
 
           return StreamBuilder<List<Map<String, dynamic>>>(
             stream: ClientService.compras(id),
+            initialData: const [],
             builder: (context, comprasSnapshot) {
               return StreamBuilder<List<Map<String, dynamic>>>(
                 stream: ClientService.pagos(id),
+                initialData: const [],
                 builder: (context, pagosSnapshot) {
                   if (comprasSnapshot.hasError || pagosSnapshot.hasError) {
                     return const Center(
@@ -44,12 +46,18 @@ class ClientBalanceScreen extends StatelessWidget {
                     );
                   }
 
-                  if (!comprasSnapshot.hasData || !pagosSnapshot.hasData) {
+                  final cargando =
+                      (comprasSnapshot.connectionState == ConnectionState.waiting &&
+                          !comprasSnapshot.hasData) ||
+                      (pagosSnapshot.connectionState == ConnectionState.waiting &&
+                          !pagosSnapshot.hasData);
+
+                  if (cargando) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  final compras = comprasSnapshot.data!;
-                  final pagos = pagosSnapshot.data!;
+                  final compras = comprasSnapshot.data ?? [];
+                  final pagos = pagosSnapshot.data ?? [];
 
                   final totalComprado = compras.fold<double>(0, (
                     total,

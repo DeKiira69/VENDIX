@@ -319,9 +319,11 @@ class ClientHomeScreen extends StatelessWidget {
   }) {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: ClientService.compras(clienteId),
+      initialData: const [],
       builder: (context, comprasSnapshot) {
         return StreamBuilder<List<Map<String, dynamic>>>(
           stream: ClientService.pagos(clienteId),
+          initialData: const [],
           builder: (context, pagosSnapshot) {
             if (comprasSnapshot.hasError || pagosSnapshot.hasError) {
               return const Center(
@@ -330,7 +332,10 @@ class ClientHomeScreen extends StatelessWidget {
             }
 
             final cargandoFinanzas =
-                !comprasSnapshot.hasData || !pagosSnapshot.hasData;
+                (comprasSnapshot.connectionState == ConnectionState.waiting &&
+                    !comprasSnapshot.hasData) ||
+                (pagosSnapshot.connectionState == ConnectionState.waiting &&
+                    !pagosSnapshot.hasData);
             final compras = comprasSnapshot.data ?? [];
             final pagos = pagosSnapshot.data ?? [];
 
