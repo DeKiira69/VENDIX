@@ -7,7 +7,7 @@ import '../../widgets/vendix_logo.dart';
 import '../admin/admin_home_screen.dart';
 import '../auth/login_screen.dart';
 import '../client/client_shell.dart';
-import '../client/enter_code_screen.dart';
+import '../client/client_welcome_hub_screen.dart';
 import '../secretary/secretary_shell.dart';
 
 /// Pantalla Splash inicial de VENDIX.
@@ -156,7 +156,7 @@ class _SplashScreenState extends State<SplashScreen> {
     if (rol == 'cliente') {
       final codigo = datos['codigoLive']?.toString().trim() ?? '';
       if (codigo.isEmpty) {
-        return const EnterCodeScreen();
+        return const ClientWelcomeHubScreen();
       }
       return const ClientShell();
     } else if (rol == 'secretaria' || rol == 'secretario' || rol == 'operador') {

@@ -10,6 +10,7 @@ import '../../services/perfil_foto_service.dart';
 import '../../theme/app_theme.dart';
 import '../auth/login_screen.dart';
 import '../client/client_shell.dart';
+import '../client/client_welcome_hub_screen.dart';
 import 'clothing_prices_screen.dart';
 import 'jornadas_screen.dart';
 import 'payments_screen.dart';
@@ -198,7 +199,7 @@ class _MoreScreenState extends State<MoreScreen> {
           ),
         );
         Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const ClientShell()),
+          MaterialPageRoute(builder: (_) => const ClientWelcomeHubScreen()),
           (route) => false,
         );
       }

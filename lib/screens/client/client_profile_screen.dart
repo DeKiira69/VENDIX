@@ -202,6 +202,7 @@ class ClientProfileScreen extends StatelessWidget {
                           : null),
                   builder: (context, adminSnap) {
                     final dataAdmin = adminSnap.data?.data() as Map<String, dynamic>?;
+                    final realAdminId = adminId.isNotEmpty ? adminId : (adminSnap.data?.id ?? '');
                     final nombreTienda = dataAdmin?['nombreEmprendimiento']?.toString() ??
                         dataAdmin?['nombre']?.toString() ??
                         'Tienda Vinculada';
@@ -317,7 +318,7 @@ class ClientProfileScreen extends StatelessWidget {
                                     usuarioId: usuarioId,
                                     clienteDocId: clienteDocId,
                                     nombreTienda: nombreTienda,
-                                    adminId: adminId,
+                                    adminId: realAdminId,
                                   ),
                                   icon: const Icon(Icons.link_off, size: 16),
                                   label: const Text('Desvincularme', style: TextStyle(fontSize: 12)),
@@ -337,6 +338,67 @@ class ClientProfileScreen extends StatelessWidget {
                       ),
                     );
                   },
+                ),
+              ] else ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(16),
+                  decoration: _tarjeta(),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF3E5F5),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.storefront_outlined, color: violeta, size: 20),
+                          ),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'TIENDA EN VIVO',
+                                  style: TextStyle(
+                                    color: Color(0xFF81798D),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                                Text(
+                                  'Sin tienda vinculada',
+                                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const EnterCodeScreen()),
+                            );
+                          },
+                          icon: const Icon(Icons.vpn_key_outlined, size: 16),
+                          label: const Text('Vincularme con un código'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: violeta,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
 
@@ -578,13 +640,41 @@ class ClientProfileScreen extends StatelessWidget {
       final db = FirebaseFirestore.instance;
       final batch = db.batch();
 
-      // Eliminar de la subcolección mis_tiendas
-      if (usuarioId.isNotEmpty && adminId.isNotEmpty) {
-        batch.delete(
-          db.collection('usuarios').doc(usuarioId).collection('mis_tiendas').doc(adminId),
-        );
+      // 1. Eliminar exhaustivamente de la subcolección mis_tiendas todas las coincidencias
+      if (usuarioId.isNotEmpty) {
+        try {
+          final misTiendasSnap = await db
+              .collection('usuarios')
+              .doc(usuarioId)
+              .collection('mis_tiendas')
+              .get();
+
+          final ntLower = nombreTienda.trim().toLowerCase();
+          final soloHayUna = misTiendasSnap.docs.length == 1;
+
+          for (final doc in misTiendasSnap.docs) {
+            final data = doc.data();
+            final docAdminId = data['adminId']?.toString().trim() ?? '';
+            final docNombre = data['nombreEmprendimiento']?.toString().trim().toLowerCase() ?? '';
+            final docAdminNombre = data['adminNombre']?.toString().trim().toLowerCase() ?? '';
+            final docKey = doc.id.trim();
+
+            final coincideId = adminId.isNotEmpty && (docKey == adminId || docAdminId == adminId);
+            final coincideNombre = ntLower.isNotEmpty && (
+                docNombre == ntLower ||
+                docAdminNombre == ntLower ||
+                (docNombre.isNotEmpty && ntLower.contains(docNombre)) ||
+                (docAdminNombre.isNotEmpty && ntLower.contains(docAdminNombre))
+            );
+
+            if (soloHayUna || coincideId || coincideNombre) {
+              batch.delete(doc.reference);
+            }
+          }
+        } catch (_) {}
       }
 
+      // 2. Limpiar completamente los campos de tienda activa en usuarios y clientes
       final actualizacionLimpieza = {
         'codigoLive': '',
         'adminId': '',
@@ -616,47 +706,24 @@ class ClientProfileScreen extends StatelessWidget {
         );
       }
 
-      await batch.commit();
-
-      // Verificar si quedan otras tiendas asociadas
+      // Barrido en todos los documentos de clientes vinculados a este usuario
       if (usuarioId.isNotEmpty) {
-        final tiendasRestantes = await db
-            .collection('usuarios')
-            .doc(usuarioId)
-            .collection('mis_tiendas')
-            .limit(1)
-            .get();
-
-        if (tiendasRestantes.docs.isNotEmpty) {
-          // Activar la siguiente tienda disponible
-          final nuevaTienda = tiendasRestantes.docs.first.data();
-          final reactivar = {
-            'adminId': nuevaTienda['adminId']?.toString() ?? '',
-            'codigoLive': nuevaTienda['codigoLive']?.toString() ?? '',
-            'secretarioId': nuevaTienda['secretarioId']?.toString() ?? '',
-          };
-          final batchReactivar = db.batch();
-          batchReactivar.set(
-            db.collection('usuarios').doc(usuarioId),
-            reactivar,
-            SetOptions(merge: true),
-          );
-          batchReactivar.set(
-            db.collection('clientes').doc(usuarioId),
-            reactivar,
-            SetOptions(merge: true),
-          );
-          if (clienteDocId.isNotEmpty && clienteDocId != usuarioId) {
-            batchReactivar.set(
-              db.collection('clientes').doc(clienteDocId),
-              reactivar,
+        try {
+          final qClientes = await db
+              .collection('clientes')
+              .where('uid', isEqualTo: usuarioId)
+              .get();
+          for (final cDoc in qClientes.docs) {
+            batch.set(
+              cDoc.reference,
+              actualizacionLimpieza,
               SetOptions(merge: true),
             );
           }
-          await batchReactivar.commit();
-        }
+        } catch (_) {}
       }
 
+      await batch.commit();
       ClientService.limpiarCache();
 
       if (!context.mounted) return;
@@ -669,6 +736,7 @@ class ClientProfileScreen extends StatelessWidget {
         ),
       );
 
+      // Ir siempre al Hub de bienvenida donde podrá elegir otra tienda o asociarse/postularse
       Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const ClientWelcomeHubScreen()),
         (route) => false,

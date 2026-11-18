@@ -202,35 +202,12 @@ class ClientHomeScreen extends StatelessWidget {
           final nombres = nombre.trim().split(RegExp(r'\s+'));
           final saludo = nombres.isNotEmpty ? nombres.first : 'Cliente';
 
-          // Si adminId está vacío, intentar resolverlo desde secretarios
-          if (adminId.isEmpty) {
+          // Si adminId está vacío pero hay un codigoLive, intentar resolver adminId únicamente en memoria
+          if (adminId.isEmpty && codigoLive.isNotEmpty) {
             return FutureBuilder<String>(
-              future: _resolverAdminId(clienteId: clienteId, codigoLive: codigoLive),
+              future: _resolverAdminId(codigoLive: codigoLive),
               builder: (context, adminIdSnap) {
                 final resolvedAdminId = adminIdSnap.data ?? '';
-                // Si encontramos el adminId real, guardar para la próxima carga y reconstruir con él
-                if (adminIdSnap.connectionState == ConnectionState.done &&
-                    resolvedAdminId.isNotEmpty &&
-                    resolvedAdminId != adminId) {
-                  // Guardar adminId en firestore para la próxima carga instantánea
-                  Future.microtask(() async {
-                    final uid = FirebaseAuth.instance.currentUser?.uid;
-                    if (uid != null) {
-                      final batch = FirebaseFirestore.instance.batch();
-                      batch.set(
-                        FirebaseFirestore.instance.collection('clientes').doc(clienteId),
-                        {'adminId': resolvedAdminId},
-                        SetOptions(merge: true),
-                      );
-                      batch.set(
-                        FirebaseFirestore.instance.collection('usuarios').doc(uid),
-                        {'adminId': resolvedAdminId},
-                        SetOptions(merge: true),
-                      );
-                      try { await batch.commit(); } catch (_) {}
-                    }
-                  });
-                }
                 return _buildClientBody(
                   context,
                   cliente: cliente,
@@ -258,53 +235,19 @@ class ClientHomeScreen extends StatelessWidget {
     );
   }
 
-  /// Resuelve el adminId desde secretarios o desde la primera tienda activa.
-  static Future<String> _resolverAdminId({
-    required String clienteId,
-    required String codigoLive,
-  }) async {
-    final db = FirebaseFirestore.instance;
-
-    // 1. Por codigoLive → secretarios
-    if (codigoLive.isNotEmpty) {
-      try {
-        final snap = await db
-            .collection('secretarios')
-            .where('codigoLive', isEqualTo: codigoLive)
-            .limit(1)
-            .get();
-        if (snap.docs.isNotEmpty) {
-          final id = snap.docs.first.data()['adminId']?.toString() ?? '';
-          if (id.isNotEmpty) return id;
-        }
-      } catch (_) {}
-    }
-
-    // 2. Por compras del cliente
-    if (clienteId.isNotEmpty) {
-      try {
-        final snap = await db
-            .collection('compras')
-            .where('clienteId', isEqualTo: clienteId)
-            .limit(1)
-            .get();
-        if (snap.docs.isNotEmpty) {
-          final id = snap.docs.first.data()['adminId']?.toString() ?? '';
-          if (id.isNotEmpty) return id;
-        }
-      } catch (_) {}
-    }
-
-    // 3. Primera tienda activa (Administradores con estado == true)
+  /// Resuelve el adminId exclusivamente si existe un codigoLive válido en memoria.
+  static Future<String> _resolverAdminId({required String codigoLive}) async {
+    if (codigoLive.isEmpty) return '';
     try {
-      final snap = await db
-          .collection('Administradores')
-          .where('estado', isEqualTo: true)
+      final snap = await FirebaseFirestore.instance
+          .collection('secretarios')
+          .where('codigoLive', isEqualTo: codigoLive)
           .limit(1)
           .get();
-      if (snap.docs.isNotEmpty) return snap.docs.first.id;
+      if (snap.docs.isNotEmpty) {
+        return snap.docs.first.data()['adminId']?.toString() ?? '';
+      }
     } catch (_) {}
-
     return '';
   }
 
@@ -989,10 +932,7 @@ class _SinFicha extends StatelessWidget {
             final idSec = snapSec.data()?['adminId']?.toString() ?? '';
             if (idSec.isNotEmpty) return idSec;
           } catch (_) {}
-          return ClientHomeScreen._resolverAdminId(
-            clienteId: '',
-            codigoLive: '',
-          );
+          return '';
         }(),
         builder: (context, adminIdSnapshot) {
           final adminId = adminIdSnapshot.data ?? '';

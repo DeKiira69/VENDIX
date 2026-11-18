@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../client/enter_code_screen.dart';
 import '../client/client_welcome_hub_screen.dart';
 import '../../services/google_auth_service.dart';
 
@@ -357,7 +356,7 @@ class _RegisterClientScreenState extends State<RegisterClientScreen> {
                           if (!mounted) return;
                           Navigator.of(context).pushAndRemoveUntil(
                             MaterialPageRoute(
-                              builder: (_) => const EnterCodeScreen(),
+                              builder: (_) => const ClientWelcomeHubScreen(),
                             ),
                             (route) => false,
                           );

@@ -30,7 +30,6 @@ class _ClientWelcomeHubScreenState extends State<ClientWelcomeHubScreen> {
   static const Color fondo = Color(0xFFF8F6FA);
 
   bool _cargando = true;
-  bool _yaRedirigido = false;
   List<Map<String, dynamic>> _misTiendas = [];
   List<Map<String, dynamic>> _misEmpleos = [];
 
@@ -92,16 +91,6 @@ class _ClientWelcomeHubScreenState extends State<ClientWelcomeHubScreen> {
         _misEmpleos = empleos;
         _cargando = false;
       });
-
-      // Auto-redirigir si solo tiene 1 asociación y ninguna del otro tipo
-      if (!_yaRedirigido) {
-        _yaRedirigido = true;
-        if (tiendas.length == 1 && empleos.isEmpty) {
-          _activarTiendaYEntrar(tiendas.first);
-        } else if (tiendas.isEmpty && empleos.length == 1) {
-          _entrarComoSecretario(empleos.first);
-        }
-      }
     } catch (_) {
       if (mounted) setState(() => _cargando = false);
     }
@@ -511,6 +500,12 @@ class _ClientWelcomeHubScreenState extends State<ClientWelcomeHubScreen> {
                     ],
                   ),
                 ),
+                IconButton(
+                  icon: const Icon(Icons.link_off, size: 20, color: Color(0xFF9E9E9E)),
+                  tooltip: 'Desvincularme',
+                  onPressed: () => _desvincularTiendaDesdeHub(tienda),
+                ),
+                const SizedBox(width: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
@@ -528,6 +523,101 @@ class _ClientWelcomeHubScreenState extends State<ClientWelcomeHubScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _desvincularTiendaDesdeHub(Map<String, dynamic> tienda) async {
+    final nombre = tienda['nombreEmprendimiento']?.toString() ?? 'esta tienda';
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.link_off, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Flexible(child: Text('Desvincularse')),
+          ],
+        ),
+        content: Text(
+          '¿Deseas desvincularte de "$nombre"?\n\nYa no verás sus prendas ni pedidos en vivo.',
+          style: const TextStyle(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('Desvincularme'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return;
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || uid.isEmpty) return;
+
+    try {
+      final db = FirebaseFirestore.instance;
+      final batch = db.batch();
+
+      final docId = tienda['docId']?.toString() ?? '';
+      if (docId.isNotEmpty) {
+        batch.delete(db.collection('usuarios').doc(uid).collection('mis_tiendas').doc(docId));
+      }
+
+      // Si no tiene docId o por seguridad, buscar todas las coincidencias
+      final misTiendasSnap = await db
+          .collection('usuarios')
+          .doc(uid)
+          .collection('mis_tiendas')
+          .get();
+      final adminId = tienda['adminId']?.toString() ?? '';
+      for (final d in misTiendasSnap.docs) {
+        if (d.id == docId || (adminId.isNotEmpty && (d.id == adminId || d.data()['adminId'] == adminId))) {
+          batch.delete(d.reference);
+        }
+      }
+
+      // Limpieza de campos raíz
+      final actualizacion = {
+        'codigoLive': '',
+        'adminId': '',
+        'secretarioId': '',
+        'fecha_desvinculacion': FieldValue.serverTimestamp(),
+      };
+      batch.set(db.collection('usuarios').doc(uid), actualizacion, SetOptions(merge: true));
+      batch.set(db.collection('clientes').doc(uid), actualizacion, SetOptions(merge: true));
+
+      try {
+        final qClientes = await db.collection('clientes').where('uid', isEqualTo: uid).get();
+        for (final cDoc in qClientes.docs) {
+          batch.set(cDoc.reference, actualizacion, SetOptions(merge: true));
+        }
+      } catch (_) {}
+
+      await batch.commit();
+      ClientService.limpiarCache();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Te has desvinculado de "$nombre" correctamente.'),
+          backgroundColor: const Color(0xFF6C4AB6),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _detectarAsociaciones();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al desvincularse: $e')),
+      );
+    }
   }
 
   Widget _buildEmpleoCard(Map<String, dynamic> empleo) {
@@ -587,6 +677,12 @@ class _ClientWelcomeHubScreenState extends State<ClientWelcomeHubScreen> {
                     ],
                   ),
                 ),
+                IconButton(
+                  icon: const Icon(Icons.logout_rounded, size: 20, color: Color(0xFF9E9E9E)),
+                  tooltip: 'Renunciar a este empleo',
+                  onPressed: () => _renunciarEmpleoDesdeHub(empleo),
+                ),
+                const SizedBox(width: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
@@ -604,6 +700,92 @@ class _ClientWelcomeHubScreenState extends State<ClientWelcomeHubScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _renunciarEmpleoDesdeHub(Map<String, dynamic> empleo) async {
+    final nombre = empleo['nombreEmprendimiento']?.toString() ??
+        empleo['adminNombre']?.toString() ??
+        'este emprendimiento';
+    final adminId = empleo['adminId']?.toString() ?? '';
+    final docId = empleo['docId']?.toString() ?? '';
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 24),
+            SizedBox(width: 8),
+            Text('Renunciar al empleo', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          '¿Deseas renunciar como secretario de "$nombre"?\n\nYa no tendrás acceso a la administración ni ventas de esta tienda.',
+          style: const TextStyle(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD32F2F)),
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('Sí, renunciar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return;
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || uid.isEmpty) return;
+
+    try {
+      final db = FirebaseFirestore.instance;
+      final lote = db.batch();
+
+      if (docId.isNotEmpty) {
+        lote.update(db.collection('secretarios').doc(docId), {
+          'estado': false,
+          'aprobado': false,
+          'estado_solicitud': 'renunciado',
+          'fecha_renuncia': FieldValue.serverTimestamp(),
+        });
+      }
+
+      if (adminId.isNotEmpty) {
+        lote.set(
+          db.collection('usuarios').doc(uid).collection('mis_empleos').doc(adminId),
+          {
+            'estado': 'renunciado',
+            'aprobado': false,
+            'fecha_renuncia': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }
+
+      await lote.commit();
+      ClientService.limpiarCache();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Has renunciado como secretario de $nombre.'),
+          backgroundColor: const Color(0xFF27AE60),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _detectarAsociaciones();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al renunciar: $e')),
+      );
+    }
   }
 
   Widget _buildAccionSecundaria({
