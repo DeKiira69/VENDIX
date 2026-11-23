@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/prenda_model.dart';
+import '../../services/client_service.dart';
 import '../../theme/app_theme.dart';
 
 class QuickSalesScreen extends StatefulWidget {
@@ -222,6 +223,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
 
     final batch = _db.batch();
     final comprasRef = _db.collection('compras');
+    final meta = await ClientService.obtenerMetadatosVenta(cId);
 
     for (final entrada in pedido.entries) {
       final docRef = comprasRef.doc();
@@ -237,6 +239,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
         'total': subtotal,
         'subtotal': subtotal,
         'fecha': FieldValue.serverTimestamp(),
+        ...meta,
       });
     }
 
@@ -463,6 +466,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
       final cId = entradaCliente.key;
       final nombreCliente = _nombresClientesCache[cId] ?? 'Clienta';
       final pedido = entradaCliente.value;
+      final meta = await ClientService.obtenerMetadatosVenta(cId);
 
       for (final entrada in pedido.entries) {
         final docRef = comprasRef.doc();
@@ -478,6 +482,7 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
           'total': subtotal,
           'subtotal': subtotal,
           'fecha': FieldValue.serverTimestamp(),
+          ...meta,
         });
       }
     }
@@ -591,7 +596,13 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
       body: StreamBuilder<QuerySnapshot>(
         stream: _db.collection('clientes').snapshots(),
         builder: (context, snapClientes) {
-          final docsClientes = snapClientes.data?.docs ?? [];
+          final adminIdActivo = ClientService.activeSecretaryAdminId ?? '';
+          final docsClientes = (snapClientes.data?.docs ?? []).where((d) {
+            if (adminIdActivo.isEmpty) return true;
+            final data = d.data() as Map<String, dynamic>;
+            final admId = data['adminId']?.toString() ?? '';
+            return admId.isEmpty || admId == adminIdActivo;
+          }).toList();
           for (final doc in docsClientes) {
             final data = doc.data() as Map<String, dynamic>;
             _nombresClientesCache[doc.id] = data['nombre'] ?? 'Clienta';

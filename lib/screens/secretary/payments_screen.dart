@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/client_service.dart';
 import '../../theme/app_theme.dart';
 
 class PaymentsScreen extends StatefulWidget {
@@ -52,6 +53,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
     }
 
     final observacion = _observacionController.text.trim();
+    final meta = await ClientService.obtenerMetadatosPago(_clienteSeleccionadoId!);
 
     await _db.collection('pagos').add({
       'clienteId': _clienteSeleccionadoId,
@@ -59,6 +61,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
       'monto': monto,
       'observacion': observacion,
       'fecha': FieldValue.serverTimestamp(),
+      ...meta,
     });
 
     final nuevoSaldo = (deuda - monto).clamp(0.0, double.infinity);
@@ -121,7 +124,14 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
       body: StreamBuilder<QuerySnapshot>(
         stream: _db.collection('clientes').orderBy('nombre').snapshots(),
         builder: (context, snapClientes) {
-          final clientes = snapClientes.data?.docs ?? [];
+          final adminIdActivo = ClientService.activeSecretaryAdminId ?? '';
+          final clientes = (snapClientes.data?.docs ?? []).where((d) {
+            if (adminIdActivo.isEmpty) return true;
+            final data = d.data() as Map<String, dynamic>;
+            final admId = data['adminId']?.toString() ?? '';
+            return admId.isEmpty || admId == adminIdActivo;
+          }).toList();
+
           if (clientes.isEmpty) {
             return const Center(child: Text('Todavía no hay clientes registrados.'));
           }

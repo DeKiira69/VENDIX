@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/prenda_model.dart';
+import '../../services/client_service.dart';
 import '../../theme/app_theme.dart';
 
 class _ClienteData {
@@ -71,7 +72,13 @@ class _ClientsScreenState extends State<ClientsScreen> {
         child: StreamBuilder<QuerySnapshot>(
           stream: _db.collection('clientes').snapshots(),
           builder: (context, snapClientes) {
-            final docsClientes = snapClientes.data?.docs ?? [];
+            final adminIdActivo = ClientService.activeSecretaryAdminId ?? '';
+            final docsClientes = (snapClientes.data?.docs ?? []).where((d) {
+              if (adminIdActivo.isEmpty) return true;
+              final data = d.data() as Map<String, dynamic>;
+              final admId = data['adminId']?.toString() ?? '';
+              return admId.isEmpty || admId == adminIdActivo;
+            }).toList();
 
             return StreamBuilder<QuerySnapshot>(
               stream: _db.collection('compras').snapshots(),
@@ -434,10 +441,13 @@ class _ClientsScreenState extends State<ClientsScreen> {
 
               Navigator.pop(dialogContext);
 
+              final adminIdActivo = ClientService.activeSecretaryAdminId ?? '';
+
               await _db.collection('clientes').add({
                 'nombre': nombre,
                 'telefono': telefono,
                 'direccion': direccion,
+                if (adminIdActivo.isNotEmpty) 'adminId': adminIdActivo,
                 'fecha': FieldValue.serverTimestamp(),
               });
 
@@ -816,6 +826,8 @@ class _ClientsScreenState extends State<ClientsScreen> {
 
                 Navigator.pop(dialogContext);
 
+                final meta = await ClientService.obtenerMetadatosVenta(cliente.id);
+
                 await _db.collection('compras').add({
                   'clienteId': cliente.id,
                   'clienteNombre': cliente.nombre,
@@ -826,6 +838,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                   'total': total,
                   'subtotal': total,
                   'fecha': FieldValue.serverTimestamp(),
+                  ...meta,
                 });
 
                 if (mounted) {
@@ -995,12 +1008,15 @@ class _ClientsScreenState extends State<ClientsScreen> {
 
                             Navigator.pop(sheetContext);
 
+                            final meta = await ClientService.obtenerMetadatosPago(cliente.id);
+
                             await _db.collection('pagos').add({
                               'clienteId': cliente.id,
                               'clienteNombre': cliente.nombre,
                               'monto': monto,
                               'observacion': 'Abono desde clientas',
                               'fecha': FieldValue.serverTimestamp(),
+                              ...meta,
                             });
 
                             final nuevoSaldo = (cliente.deuda - monto).clamp(0.0, double.infinity);

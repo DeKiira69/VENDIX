@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/client_service.dart';
 import '../../theme/app_theme.dart';
 
 class StatisticsScreen extends StatefulWidget {
@@ -134,13 +135,42 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             return StreamBuilder<QuerySnapshot>(
               stream: db.collection('pagos').snapshots(),
               builder: (context, snapPagos) {
-                final clientes = snapClientes.data?.docs ?? [];
+                final adminIdActivo = ClientService.activeSecretaryAdminId ?? '';
+
+                // Filtrar clientes pertenecientes al emprendimiento activo
+                final clientesTienda = (snapClientes.data?.docs ?? []).where((d) {
+                  final data = d.data() as Map<String, dynamic>;
+                  final admId = data['adminId']?.toString() ?? '';
+                  return adminIdActivo.isEmpty || admId == adminIdActivo;
+                }).toList();
+
+                final misClientesIds = clientesTienda.map((d) => d.id).toSet();
+
                 final todasCompras = snapCompras.data?.docs ?? [];
                 final todosPagos = snapPagos.data?.docs ?? [];
 
+                // Filtrar compras: soporta compras nuevas (adminId directo) y compras históricas (por clienteId de la tienda)
+                final comprasTienda = todasCompras.where((doc) {
+                  final d = doc.data() as Map<String, dynamic>;
+                  final admId = d['adminId']?.toString() ?? '';
+                  final cId = d['clienteId']?.toString() ?? '';
+                  if (adminIdActivo.isEmpty) return true;
+                  return admId == adminIdActivo || misClientesIds.contains(cId);
+                }).toList();
+
+                // Filtrar pagos: soporta pagos nuevos y pagos históricos
+                final pagosTienda = todosPagos.where((doc) {
+                  final d = doc.data() as Map<String, dynamic>;
+                  final admId = d['adminId']?.toString() ?? '';
+                  final cId = d['clienteId']?.toString() ?? '';
+                  if (adminIdActivo.isEmpty) return true;
+                  return admId == adminIdActivo || misClientesIds.contains(cId);
+                }).toList();
+
                 // Filtrar por fecha si está seleccionada
-                final compras = _filtrarDocs(todasCompras);
-                final pagos = _filtrarDocs(todosPagos);
+                final compras = _filtrarDocs(comprasTienda);
+                final pagos = _filtrarDocs(pagosTienda);
+                final clientes = clientesTienda;
 
                 double totalVentas = 0;
                 double totalCobrado = 0;

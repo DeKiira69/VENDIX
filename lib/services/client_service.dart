@@ -184,14 +184,19 @@ class ClientService {
     }
 
     final referencia = _db.collection('compras').doc();
+    final meta = await obtenerMetadatosVenta(clienteId);
 
     await referencia.set({
       'clienteId': clienteId,
       'prendaNombre': prendaNombre.trim(),
+      'prenda': prendaNombre.trim(),
       'precioUnitario': precioUnitario,
+      'precio': precioUnitario,
       'cantidad': cantidad,
       'subtotal': precioUnitario * cantidad,
+      'total': precioUnitario * cantidad,
       'fecha': FieldValue.serverTimestamp(),
+      ...meta,
     });
 
     return referencia.id;
@@ -233,12 +238,14 @@ class ClientService {
     }
 
     final referencia = _db.collection('pagos').doc();
+    final meta = await obtenerMetadatosPago(clienteId);
 
     await referencia.set({
       'clienteId': clienteId,
       'monto': monto,
       'observacion': observacion.trim(),
       'fecha': FieldValue.serverTimestamp(),
+      ...meta,
     });
 
     return referencia.id;
@@ -247,6 +254,100 @@ class ClientService {
   // ============================================================
   // CÁLCULOS Y UTILIDADES
   // ============================================================
+
+  /// Resuelve los metadatos de autoría y tienda (adminId) para vincular cada venta.
+  static Future<Map<String, dynamic>> obtenerMetadatosVenta(String clienteId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final uid = user?.uid ?? '';
+    String adminId = activeSecretaryAdminId ?? '';
+    String rolResponsable = 'secretario';
+    String registradoPorNombre = user?.displayName ?? '';
+
+    if (uid.isNotEmpty) {
+      try {
+        final uDoc = await _db.collection('usuarios').doc(uid).get();
+        final uData = uDoc.data() ?? {};
+        final rol = uData['rol']?.toString().toLowerCase() ?? '';
+        final nom = uData['nombre']?.toString() ?? '';
+        final ape = uData['apellido']?.toString() ?? '';
+        final nComp = [nom, ape].where((s) => s.isNotEmpty).join(' ');
+        if (nComp.isNotEmpty) registradoPorNombre = nComp;
+
+        if (rol == 'administrador' || rol == 'admin') {
+          rolResponsable = 'administrador';
+          if (adminId.isEmpty) adminId = uid;
+        } else {
+          if (adminId.isEmpty) {
+            adminId = uData['adminId']?.toString() ?? '';
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (adminId.isEmpty && clienteId.isNotEmpty) {
+      try {
+        final cDoc = await _db.collection('clientes').doc(clienteId).get();
+        adminId = cDoc.data()?['adminId']?.toString() ?? '';
+      } catch (_) {}
+    }
+
+    return {
+      'adminId': adminId,
+      'registradoPorId': uid,
+      'registradoPorNombre': registradoPorNombre.isNotEmpty
+          ? registradoPorNombre
+          : (rolResponsable == 'administrador' ? 'Emprendedor' : 'Secretario'),
+      'rolResponsable': rolResponsable,
+      'estado': 'confirmada',
+    };
+  }
+
+  /// Resuelve los metadatos de autoría y tienda para registrar pagos.
+  static Future<Map<String, dynamic>> obtenerMetadatosPago(String clienteId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final uid = user?.uid ?? '';
+    String adminId = activeSecretaryAdminId ?? '';
+    String rolResponsable = 'secretario';
+    String cobradoPorNombre = user?.displayName ?? '';
+
+    if (uid.isNotEmpty) {
+      try {
+        final uDoc = await _db.collection('usuarios').doc(uid).get();
+        final uData = uDoc.data() ?? {};
+        final rol = uData['rol']?.toString().toLowerCase() ?? '';
+        final nom = uData['nombre']?.toString() ?? '';
+        final ape = uData['apellido']?.toString() ?? '';
+        final nComp = [nom, ape].where((s) => s.isNotEmpty).join(' ');
+        if (nComp.isNotEmpty) cobradoPorNombre = nComp;
+
+        if (rol == 'administrador' || rol == 'admin') {
+          rolResponsable = 'administrador';
+          if (adminId.isEmpty) adminId = uid;
+        } else {
+          if (adminId.isEmpty) {
+            adminId = uData['adminId']?.toString() ?? '';
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (adminId.isEmpty && clienteId.isNotEmpty) {
+      try {
+        final cDoc = await _db.collection('clientes').doc(clienteId).get();
+        adminId = cDoc.data()?['adminId']?.toString() ?? '';
+      } catch (_) {}
+    }
+
+    return {
+      'adminId': adminId,
+      'registradoPorId': uid,
+      'cobradoPorId': uid,
+      'cobradoPorNombre': cobradoPorNombre.isNotEmpty
+          ? cobradoPorNombre
+          : (rolResponsable == 'administrador' ? 'Emprendedor' : 'Secretario'),
+      'rolResponsable': rolResponsable,
+    };
+  }
 
   // Convierte los valores numéricos que devuelve Firestore.
   static double numero(dynamic valor) {
