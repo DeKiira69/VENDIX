@@ -40,9 +40,23 @@ class _SolicitudEmpleoScreenState extends State<SolicitudEmpleoScreen> {
     final apellidoCliente = dataUser['apellido']?.toString() ?? '';
     final telefonoCliente = dataUser['telefono']?.toString() ?? '';
 
-    // Guardar solicitud en la colección de secretarios/solicitudes
-    final idSecre = await IdService.generarIdSecretario('$nombreCliente $apellidoCliente');
+    // Verificar que no exista ya una solicitud para este admin
     final solicitudId = '${usuario.uid}_$adminId';
+    final existente = await db.collection('secretarios').doc(solicitudId).get();
+    if (existente.exists) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ya enviaste una solicitud a este emprendimiento.'),
+          backgroundColor: Color(0xFFE67E22),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // Generar ID legible para referencia
+    final idSecre = await IdService.generarIdSecretario('$nombreCliente $apellidoCliente');
 
     final datosSecretario = {
       'id': idSecre,
@@ -64,11 +78,8 @@ class _SolicitudEmpleoScreenState extends State<SolicitudEmpleoScreen> {
       'fecha_registro': FieldValue.serverTimestamp(),
     };
 
-    // Guardar con identificador legible SecreNNN_NombreApellido
-    await db.collection('secretarios').doc(idSecre).set(datosSecretario);
-
-    // Guardar también con ID compuesto para verificación rápida O(1) de solicitud existente
-    await db.collection('secretarios').doc(solicitudId).set(datosSecretario, SetOptions(merge: true));
+    // Guardar UN solo documento con ID compuesto (uid_adminId) → único por usuario+admin
+    await db.collection('secretarios').doc(solicitudId).set(datosSecretario);
 
     // También registrar en subcolección del usuario para seguimiento
     await db

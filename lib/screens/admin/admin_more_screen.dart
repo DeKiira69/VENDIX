@@ -492,6 +492,7 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
         StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('secretarios')
+              .where('adminId', isEqualTo: widget.admin.id)
               .snapshots(),
           builder: (context, snapshot) {
             int countPendientes = 0;
@@ -500,16 +501,15 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
             if (snapshot.hasData) {
               for (var doc in snapshot.data!.docs) {
                 final d = doc.data() as Map<String, dynamic>;
-                final estado = d['estado'];
                 final estadoSol = d['estado_solicitud']
                     ?.toString()
                     .toLowerCase();
                 final aprobado = d['aprobado'];
 
                 if (estadoSol == 'pendiente' ||
-                    (estado == false && aprobado != true)) {
+                    (d['estado'] == false && aprobado != true)) {
                   countPendientes++;
-                } else if (d['adminId'] == widget.admin.id) {
+                } else if (aprobado == true || d['estado'] == true) {
                   countActivos++;
                 }
               }
@@ -626,6 +626,7 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
         StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('secretarios')
+              .where('adminId', isEqualTo: widget.admin.id)
               .orderBy('fecha_registro', descending: true)
               .snapshots(),
           builder: (context, snapshot) {
@@ -649,22 +650,18 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
             final allDocs = snapshot.data?.docs ?? [];
 
             // Filtrar según pestaña
-            // - Pendientes: sin adminId (cualquier admin puede aprobarlos)
-            // - Activos: solo los que pertenecen a este admin
             final filteredDocs = allDocs.where((doc) {
               final d = doc.data() as Map<String, dynamic>;
-              final estado = d['estado'];
               final estadoSol = d['estado_solicitud']?.toString().toLowerCase();
               final aprobado = d['aprobado'];
               final esPendiente =
                   estadoSol == 'pendiente' ||
-                  (estado == false && aprobado != true);
+                  (d['estado'] == false && aprobado != true);
 
               if (_tabSeleccionada == 1) {
                 return esPendiente;
               } else {
-                // Solo activos que pertenecen a este admin
-                return !esPendiente && d['adminId'] == widget.admin.id;
+                return !esPendiente;
               }
             }).toList();
 
@@ -987,7 +984,7 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
       final lote = db.batch();
       final adminId = widget.admin.id;
 
-      // Actualizar en 'secretarios' — vincular al admin que aprueba
+      // Actualizar el documento principal del secretario
       lote.update(db.collection('secretarios').doc(docId), {
         'estado': true,
         'aprobado': true,
@@ -996,47 +993,37 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
         'adminId': adminId,
       });
 
-      final solId = data['solicitudId']?.toString();
-      if (solId != null && solId.isNotEmpty && solId != docId) {
-        try {
-          lote.update(db.collection('secretarios').doc(solId), {
-            'estado': true,
-            'aprobado': true,
-            'estado_solicitud': 'aprobado',
-            'fecha_aprobacion': FieldValue.serverTimestamp(),
+      // Si tiene UID asociado, actualizar mis_empleos del usuario
+      final targetUid = data['uid']?.toString() ?? data['clienteId']?.toString();
+      if (targetUid != null && targetUid.isNotEmpty) {
+        // Actualizar en la subcolección mis_empleos del usuario
+        lote.set(
+          db.collection('usuarios').doc(targetUid).collection('mis_empleos').doc(adminId),
+          {
             'adminId': adminId,
-          });
-        } catch (_) {}
-      }
+            'adminNombre': data['adminNombre'] ?? '',
+            'nombreEmprendimiento': data['nombreEmprendimiento'] ?? '',
+            'estado': 'aprobado',
+            'aprobado': true,
+            'fecha_aprobacion': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
 
-      // Si tiene UID asociado o documento en usuarios
-      final targetUid = data['uid']?.toString() ?? data['clienteId']?.toString() ?? docId;
-      final userDocRef = db.collection('usuarios').doc(targetUid);
-      final userDoc = await userDocRef.get();
-      if (userDoc.exists) {
-        lote.update(userDocRef, {
-          'estado': 'activo',
-          'aprobado': true,
-          'rol': 'secretaria',
-          'adminId': adminId,
-          'secretarioId': docId,
-          'codigo': docId,
-        });
-      } else {
-        // Buscar por correo en 'usuarios' si el docId no era el UID
-        final correo = data['correo'];
-        if (correo != null) {
-          final query = await db
-              .collection('usuarios')
-              .where('correo', isEqualTo: correo)
-              .limit(1)
-              .get();
-          if (query.docs.isNotEmpty) {
-            lote.update(query.docs.first.reference, {
-              'estado': 'activo',
-              'aprobado': true,
+        // Actualizar el documento del usuario SIN sobrescribir adminId/secretarioId
+        // para no romper otros empleos activos. Solo marcamos que tiene rol de secretaria.
+        final userDocRef = db.collection('usuarios').doc(targetUid);
+        final userDoc = await userDocRef.get();
+        if (userDoc.exists) {
+          final userData = userDoc.data() ?? {};
+          final rolActual = userData['rol']?.toString();
+          // Solo cambiar a secretaria si su rol actual es cliente
+          // No sobrescribir si ya es admin o secretaria con otro empleo
+          if (rolActual == 'cliente' || rolActual == null || rolActual.isEmpty) {
+            lote.update(userDocRef, {
               'rol': 'secretaria',
               'adminId': adminId,
+              'secretarioId': docId,
             });
           }
         }
@@ -1092,11 +1079,29 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
 
     try {
       final db = FirebaseFirestore.instance;
-      await db.collection('secretarios').doc(docId).update({
+      final batch = db.batch();
+
+      batch.update(db.collection('secretarios').doc(docId), {
         'estado': false,
         'aprobado': false,
         'estado_solicitud': 'rechazado',
       });
+
+      // Actualizar mis_empleos del usuario
+      final targetUid = data['uid']?.toString() ?? data['clienteId']?.toString();
+      final adminId = data['adminId']?.toString() ?? widget.admin.id;
+      if (targetUid != null && targetUid.isNotEmpty) {
+        batch.set(
+          db.collection('usuarios').doc(targetUid).collection('mis_empleos').doc(adminId),
+          {
+            'estado': 'rechazado',
+            'aprobado': false,
+          },
+          SetOptions(merge: true),
+        );
+      }
+
+      await batch.commit();
 
       if (context.mounted) {
         ScaffoldMessenger.of(
