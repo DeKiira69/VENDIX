@@ -11,6 +11,7 @@ import '../secretary/payments_screen.dart';
 import '../auth/login_screen.dart';
 import '../../services/perfil_foto_service.dart';
 import '../../firebase_options.dart';
+import '../../widgets/reports/export_report_dialog.dart';
 
 /// Pantalla "Más opciones" del admin – Figma fiel.
 ///
@@ -220,6 +221,17 @@ class AdminMoreScreen extends StatelessWidget {
               subtitle: 'Revisar abonos, verificar transferencias y saldos',
               destination: const PaymentsScreen(),
             ),
+            const SizedBox(height: 8),
+
+            _buildActionCard(
+              context,
+              icon: Icons.table_chart_rounded,
+              iconBg: const Color(0xFFF3E5F5),
+              iconColor: const Color(0xFF7B1FA2),
+              title: 'Exportar reportes comerciales',
+              subtitle: 'Descargar Excel (.xlsx) o exportar a Google Sheets',
+              onTap: () => ExportReportDialog.mostrar(context, adminIdManual: admin.id),
+            ),
             const SizedBox(height: 26),
 
             // ─── Ajustes de la cuenta ───
@@ -263,6 +275,28 @@ class AdminMoreScreen extends StatelessWidget {
                       color: AppTheme.muted,
                     ),
                     onTap: () {},
+                  ),
+                  const Divider(height: 1, indent: 56, endIndent: 16),
+                  ListTile(
+                    leading: const Icon(Icons.table_chart_rounded, color: AppTheme.violet),
+                    title: const Text(
+                      'Exportar reportes comerciales',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.dark,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Descargar Excel o exportar a Google Sheets',
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                    trailing: const Icon(
+                      Icons.arrow_forward_ios,
+                      size: 14,
+                      color: AppTheme.muted,
+                    ),
+                    onTap: () => ExportReportDialog.mostrar(context, adminIdManual: admin.id),
                   ),
                   const Divider(height: 1, indent: 56, endIndent: 16),
                   ListTile(

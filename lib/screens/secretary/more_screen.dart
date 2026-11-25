@@ -14,6 +14,7 @@ import '../client/client_welcome_hub_screen.dart';
 import 'clothing_prices_screen.dart';
 import 'jornadas_screen.dart';
 import 'payments_screen.dart';
+import '../../widgets/reports/export_report_dialog.dart';
 
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
@@ -768,6 +769,30 @@ class _MoreScreenState extends State<MoreScreen> {
                 icon: const Icon(Icons.person_outline, color: Colors.white),
                 label: const Text(
                   'Cambiar a modo Cliente',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Botón de Exportar Reportes Operativos
+              FilledButton.icon(
+                onPressed: () {
+                  ExportReportDialog.mostrar(context);
+                },
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  backgroundColor: const Color(0xFF2E7D32),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                icon: const Icon(Icons.table_chart_outlined, color: Colors.white),
+                label: const Text(
+                  'Exportar reportes operativos',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
