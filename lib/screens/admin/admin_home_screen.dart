@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -656,7 +657,7 @@ class AdminStoreLocationScreen extends StatelessWidget {
       final db = FirebaseFirestore.instance;
       final batch = db.batch();
       final docAdmin = db.collection('Administradores').doc(admin.id);
-      final docUser = db.collection('usuarios').doc(admin.id);
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
 
       final dir = (seleccion.address ?? direccionActual ?? '').trim();
       final datos = {
@@ -675,7 +676,10 @@ class AdminStoreLocationScreen extends StatelessWidget {
       };
 
       batch.set(docAdmin, datos, SetOptions(merge: true));
-      batch.set(docUser, datos, SetOptions(merge: true));
+      if (currentUid != null && currentUid.isNotEmpty) {
+        final docUser = db.collection('usuarios').doc(currentUid);
+        batch.set(docUser, datos, SetOptions(merge: true));
+      }
       await batch.commit();
 
       if (context.mounted) {

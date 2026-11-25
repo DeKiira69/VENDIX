@@ -220,7 +220,6 @@ class AdminMoreScreen extends StatelessWidget {
               subtitle: 'Revisar abonos, verificar transferencias y saldos',
               destination: const PaymentsScreen(),
             ),
-
             const SizedBox(height: 26),
 
             // ─── Ajustes de la cuenta ───
@@ -332,14 +331,20 @@ class AdminMoreScreen extends StatelessWidget {
     required Color iconColor,
     required String title,
     required String subtitle,
-    required Widget destination,
+    Widget? destination,
+    VoidCallback? onTap,
   }) {
     return InkWell(
       borderRadius: BorderRadius.circular(14),
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => destination),
-      ),
+      onTap: onTap ??
+          () {
+            if (destination != null) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => destination),
+              );
+            }
+          },
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -957,8 +962,22 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
         'adminId': adminId,
       });
 
-      // Si tiene UID asociado o documento en usuarios con el mismo id
-      final userDocRef = db.collection('usuarios').doc(docId);
+      final solId = data['solicitudId']?.toString();
+      if (solId != null && solId.isNotEmpty && solId != docId) {
+        try {
+          lote.update(db.collection('secretarios').doc(solId), {
+            'estado': true,
+            'aprobado': true,
+            'estado_solicitud': 'aprobado',
+            'fecha_aprobacion': FieldValue.serverTimestamp(),
+            'adminId': adminId,
+          });
+        } catch (_) {}
+      }
+
+      // Si tiene UID asociado o documento en usuarios
+      final targetUid = data['uid']?.toString() ?? data['clienteId']?.toString() ?? docId;
+      final userDocRef = db.collection('usuarios').doc(targetUid);
       final userDoc = await userDocRef.get();
       if (userDoc.exists) {
         lote.update(userDocRef, {
@@ -966,6 +985,8 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
           'aprobado': true,
           'rol': 'secretaria',
           'adminId': adminId,
+          'secretarioId': docId,
+          'codigo': docId,
         });
       } else {
         // Buscar por correo en 'usuarios' si el docId no era el UID

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/id_service.dart';
 import '../../theme/app_theme.dart';
 
 class SolicitudEmpleoScreen extends StatefulWidget {
@@ -40,13 +41,16 @@ class _SolicitudEmpleoScreenState extends State<SolicitudEmpleoScreen> {
     final telefonoCliente = dataUser['telefono']?.toString() ?? '';
 
     // Guardar solicitud en la colección de secretarios/solicitudes
-    // Documento ID compuesto para evitar duplicados por emprendedor
+    final idSecre = await IdService.generarIdSecretario('$nombreCliente $apellidoCliente');
     final solicitudId = '${usuario.uid}_$adminId';
 
-    await db.collection('secretarios').doc(solicitudId).set({
+    final datosSecretario = {
+      'id': idSecre,
+      'codigo': idSecre,
       'solicitudId': solicitudId,
       'clienteId': usuario.uid,
       'uid': usuario.uid,
+      'firebaseUid': usuario.uid,
       'nombre': '$nombreCliente $apellidoCliente'.trim(),
       'correo': usuario.email ?? '',
       'telefono': telefonoCliente,
@@ -58,7 +62,13 @@ class _SolicitudEmpleoScreenState extends State<SolicitudEmpleoScreen> {
       'estado_solicitud': 'pendiente',
       'fecha_solicitud': FieldValue.serverTimestamp(),
       'fecha_registro': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    };
+
+    // Guardar con identificador legible SecreNNN_NombreApellido
+    await db.collection('secretarios').doc(idSecre).set(datosSecretario);
+
+    // Guardar también con ID compuesto para verificación rápida O(1) de solicitud existente
+    await db.collection('secretarios').doc(solicitudId).set(datosSecretario, SetOptions(merge: true));
 
     // También registrar en subcolección del usuario para seguimiento
     await db

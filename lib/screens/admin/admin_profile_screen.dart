@@ -55,11 +55,14 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         cambios,
         SetOptions(merge: true),
       );
-      lote.set(
-        db.collection('usuarios').doc(widget.admin.id),
-        cambios,
-        SetOptions(merge: true),
-      );
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
+      if (currentUid != null && currentUid.isNotEmpty) {
+        lote.set(
+          db.collection('usuarios').doc(currentUid),
+          cambios,
+          SetOptions(merge: true),
+        );
+      }
       await lote.commit();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -194,21 +197,19 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
 
                       // Campo Teléfono
                       const Text(
-                        'Teléfono / Celular',
+                        'Teléfono / Celular (opcional)',
                         style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textoOscuro),
                       ),
                       const SizedBox(height: 6),
                       TextFormField(
                         controller: telefonoCtrl,
                         keyboardType: TextInputType.phone,
-                        decoration: _inputDecor('Ej. 0991234567', Icons.phone_outlined),
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'Ingresa tu teléfono' : null,
+                        decoration: _inputDecor('Ej. 0991234567 (opcional)', Icons.phone_outlined),
                       ),
                       const SizedBox(height: 24),
 
                       const Text(
-                        'Dirección de la tienda',
+                        'Dirección de la tienda (opcional)',
                         style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textoOscuro),
                       ),
                       const SizedBox(height: 6),
@@ -222,7 +223,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                                   )
                                 : null,
                         decoration: _inputDecor(
-                          'Calle, sector y referencia',
+                          'Calle, sector y referencia (opcional)',
                           Icons.location_on_outlined,
                         ),
                         onLocationSelected: (ubicacion) {
@@ -234,12 +235,6 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                             ubicacion,
                             direccion: direccionTiendaCtrl.text,
                           );
-                        },
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Escribe o selecciona la dirección de la tienda.';
-                          }
-                          return null;
                         },
                       ),
                       const SizedBox(height: 12),
@@ -268,19 +263,8 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                               ? null
                               : () async {
                                   if (!formKey.currentState!.validate()) return;
-                                  if (latitudTienda == null || longitudTienda == null) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Selecciona la ubicación de la tienda en el mapa.',
-                                        ),
-                                      ),
-                                    );
-                                    return;
-                                  }
                                   setModalState(() => guardando = true);
 
-                                  final uid = widget.admin.id;
                                   final nuevoNombre = nombreCtrl.text.trim();
                                   final nuevoApellido = apellidoCtrl.text.trim();
                                   final nuevoEmprendimiento = emprendimientoCtrl.text.trim();
@@ -303,16 +287,19 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                                     };
 
                                     // Sincronizar en Administradores y en usuarios
+                                    final currentAuthUid = FirebaseAuth.instance.currentUser?.uid;
                                     batch.set(
-                                      db.collection('Administradores').doc(uid),
+                                      db.collection('Administradores').doc(widget.admin.id),
                                       actualizacion,
                                       SetOptions(merge: true),
                                     );
-                                    batch.set(
-                                      db.collection('usuarios').doc(uid),
-                                      actualizacion,
-                                      SetOptions(merge: true),
-                                    );
+                                    if (currentAuthUid != null && currentAuthUid.isNotEmpty) {
+                                      batch.set(
+                                        db.collection('usuarios').doc(currentAuthUid),
+                                        actualizacion,
+                                        SetOptions(merge: true),
+                                      );
+                                    }
 
                                     await batch.commit();
 

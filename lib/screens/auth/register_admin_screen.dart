@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/administrador_model.dart';
 import '../../services/google_auth_service.dart';
-import '../../widgets/store_location_map.dart';
+import '../../services/id_service.dart';
 import '../admin/admin_home_screen.dart';
 
 /// Pantalla de registro para Emprendedores (Administradores).
@@ -26,14 +26,10 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
   final _nombre = TextEditingController();
   final _apellido = TextEditingController();
   final _emprendimiento = TextEditingController();
-  final _direccionTienda = TextEditingController();
   final _telefono = TextEditingController();
   final _correo = TextEditingController();
   final _contrasena = TextEditingController();
   final _confirmacion = TextEditingController();
-
-  double? _latitudTienda;
-  double? _longitudTienda;
 
   bool _ocultar = true;
   bool _cargando = false;
@@ -57,7 +53,6 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
     _nombre.dispose();
     _apellido.dispose();
     _emprendimiento.dispose();
-    _direccionTienda.dispose();
     _telefono.dispose();
     _correo.dispose();
     _contrasena.dispose();
@@ -85,12 +80,6 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
   Future<void> _registrar() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate() || _cargando) return;
-    if (_latitudTienda == null || _longitudTienda == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecciona la ubicación de la tienda en el mapa.')),
-      );
-      return;
-    }
 
     setState(() => _cargando = true);
 
@@ -111,9 +100,9 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
         nombre: _nombre.text.trim(),
         apellido: _apellido.text.trim(),
         nombreEmprendimiento: _emprendimiento.text.trim(),
-        direccionTienda: _direccionTienda.text.trim(),
-        latitudTienda: _latitudTienda!,
-        longitudTienda: _longitudTienda!,
+        direccionTienda: '',
+        latitudTienda: null,
+        longitudTienda: null,
         correo: _correo.text.trim(),
         telefono: _telefono.text.trim(),
         fotoUrl: '',
@@ -191,9 +180,6 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
 
   /// Modal para completar datos cuando el usuario viene de Google.
   Future<void> _mostrarModalDatosGoogle(User usuario) async {
-    _direccionTienda.clear();
-    _latitudTienda = null;
-    _longitudTienda = null;
     final partes = (usuario.displayName ?? '').trim().split(RegExp(r'\s+'));
     final nombreCtrl =
         TextEditingController(text: partes.isNotEmpty ? partes.first : '');
@@ -299,39 +285,16 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  const Text(
-                    'Dirección de la tienda',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                  ),
-                  const SizedBox(height: 6),
-                  StoreLocationAddressField(
-                    controller: _direccionTienda,
-                    decoration: _decoracion(
-                      'Calle, sector y referencia',
-                      Icons.location_on_outlined,
-                    ),
-                    onLocationSelected: (ubicacion) {
-                      _latitudTienda = ubicacion.latitude;
-                      _longitudTienda = ubicacion.longitude;
-                    },
-                    validator: (v) => v == null || v.trim().isEmpty
-                        ? 'Selecciona la dirección de la tienda en el mapa.'
-                        : null,
-                  ),
-                  const SizedBox(height: 14),
-
                   // Teléfono
                   const Text(
-                    'Teléfono',
+                    'Teléfono (opcional)',
                     style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                   ),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: telefonoCtrl,
                     keyboardType: TextInputType.phone,
-                    decoration: _decoracion('Ej. 0991234567', Icons.phone_outlined),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Ingresa tu teléfono' : null,
+                    decoration: _decoracion('Ej. 0991234567 (opcional)', Icons.phone_outlined),
                   ),
                   const SizedBox(height: 24),
 
@@ -347,14 +310,6 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
                       ),
                       onPressed: () async {
                         if (!formKey.currentState!.validate()) return;
-                        if (_latitudTienda == null || _longitudTienda == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Selecciona la ubicación de la tienda en el mapa.'),
-                            ),
-                          );
-                          return;
-                        }
                         Navigator.pop(bottomCtx);
                         setState(() => _cargando = true);
                         try {
@@ -363,9 +318,9 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
                             nombre: nombreCtrl.text.trim(),
                             apellido: apellidoCtrl.text.trim(),
                             nombreEmprendimiento: emprendimientoCtrl.text.trim(),
-                            direccionTienda: _direccionTienda.text.trim(),
-                            latitudTienda: _latitudTienda!,
-                            longitudTienda: _longitudTienda!,
+                            direccionTienda: '',
+                            latitudTienda: null,
+                            longitudTienda: null,
                             correo: usuario.email ?? '',
                             telefono: telefonoCtrl.text.trim(),
                             fotoUrl: usuario.photoURL ?? '',
@@ -421,9 +376,9 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
     required String nombre,
     required String apellido,
     required String nombreEmprendimiento,
-    required String direccionTienda,
-    required double latitudTienda,
-    required double longitudTienda,
+    String direccionTienda = '',
+    double? latitudTienda,
+    double? longitudTienda,
     required String correo,
     required String telefono,
     required String fotoUrl,
@@ -432,9 +387,13 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
     final db = FirebaseFirestore.instance;
     final lote = db.batch();
 
-    // Colección principal de administradores (usada para identificar el rol)
-    lote.set(db.collection('Administradores').doc(uid), {
+    final idAdmin = await IdService.generarIdAdministrador('$nombre $apellido');
+
+    final datosAdmin = {
+      'id': idAdmin,
+      'codigo': idAdmin,
       'uid': uid,
+      'firebaseUid': uid,
       'nombre': nombre,
       'apellido': apellido,
       'nombreEmprendimiento': nombreEmprendimiento,
@@ -447,11 +406,17 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
       'estado': true,
       'creadoEn': FieldValue.serverTimestamp(),
       'metodo_registro': metodo,
-    });
+    };
+
+    // Colección principal de administradores con ID personalizado único (AdminNNN_NombreApellido)
+    lote.set(db.collection('Administradores').doc(idAdmin), datosAdmin);
 
     // Colección general de usuarios para la resolución de roles en login
     lote.set(db.collection('usuarios').doc(uid), {
       'uid': uid,
+      'firebaseUid': uid,
+      'adminId': idAdmin,
+      'codigo': idAdmin,
       'nombre': nombre,
       'apellido': apellido,
       'nombreEmprendimiento': nombreEmprendimiento,
@@ -624,44 +589,16 @@ class _RegisterAdminScreenState extends State<RegisterAdminScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      const Text(
-                        'Dirección de la tienda',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 7),
-                      StoreLocationAddressField(
-                        controller: _direccionTienda,
-                        decoration: _decoracion(
-                          'Calle, sector y referencia',
-                          Icons.location_on_outlined,
-                        ),
-                        onLocationSelected: (ubicacion) {
-                          _latitudTienda = ubicacion.latitude;
-                          _longitudTienda = ubicacion.longitude;
-                        },
-                        validator: (value) =>
-                            value == null || value.trim().isEmpty
-                                ? 'Escribe o selecciona la dirección de la tienda.'
-                                : null,
-                      ),
-                      const SizedBox(height: 16),
-
                       // Teléfono
                       const Text(
-                        'Teléfono',
+                        'Teléfono (opcional)',
                         style: TextStyle(fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 7),
                       TextFormField(
                         controller: _telefono,
                         keyboardType: TextInputType.phone,
-                        decoration: _decoracion('Ej. 099 123 4567', Icons.phone_outlined),
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) {
-                            return 'Ingresa tu número de teléfono.';
-                          }
-                          return null;
-                        },
+                        decoration: _decoracion('Ej. 099 123 4567 (opcional)', Icons.phone_outlined),
                       ),
                       const SizedBox(height: 16),
 

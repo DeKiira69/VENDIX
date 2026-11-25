@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/prenda_model.dart';
 import '../../services/client_service.dart';
+import '../../services/id_service.dart';
 import '../../theme/app_theme.dart';
 
 class QuickSalesScreen extends StatefulWidget {
@@ -224,14 +225,19 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
     final batch = _db.batch();
     final comprasRef = _db.collection('compras');
     final meta = await ClientService.obtenerMetadatosVenta(cId);
+    final adminId = meta['adminId']?.toString() ?? '';
 
     for (final entrada in pedido.entries) {
-      final docRef = comprasRef.doc();
+      final idVenta = await IdService.generarIdCompra(adminId: adminId);
+      final docRef = comprasRef.doc(idVenta);
       final subtotal = entrada.key.precio * entrada.value;
 
       batch.set(docRef, {
+        'id': idVenta,
+        'codigo': idVenta,
         'clienteId': cId,
         'clienteNombre': nombreCliente,
+        'prendaId': entrada.key.id,
         'prenda': entrada.key.nombre,
         'prendaNombre': entrada.key.nombre,
         'precio': entrada.key.precio,
@@ -467,14 +473,19 @@ class _QuickSalesScreenState extends State<QuickSalesScreen> {
       final nombreCliente = _nombresClientesCache[cId] ?? 'Clienta';
       final pedido = entradaCliente.value;
       final meta = await ClientService.obtenerMetadatosVenta(cId);
+      final adminId = meta['adminId']?.toString() ?? '';
 
       for (final entrada in pedido.entries) {
-        final docRef = comprasRef.doc();
+        final idVenta = await IdService.generarIdCompra(adminId: adminId);
+        final docRef = comprasRef.doc(idVenta);
         final subtotal = entrada.key.precio * entrada.value;
 
         batch.set(docRef, {
+          'id': idVenta,
+          'codigo': idVenta,
           'clienteId': cId,
           'clienteNombre': nombreCliente,
+          'prendaId': entrada.key.id,
           'prenda': entrada.key.nombre,
           'prendaNombre': entrada.key.nombre,
           'precio': entrada.key.precio,

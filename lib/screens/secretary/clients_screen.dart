@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/prenda_model.dart';
 import '../../services/client_service.dart';
+import '../../services/id_service.dart';
 import '../../theme/app_theme.dart';
 
 class _ClienteData {
@@ -443,13 +444,12 @@ class _ClientsScreenState extends State<ClientsScreen> {
 
               final adminIdActivo = ClientService.activeSecretaryAdminId ?? '';
 
-              await _db.collection('clientes').add({
-                'nombre': nombre,
-                'telefono': telefono,
-                'direccion': direccion,
-                if (adminIdActivo.isNotEmpty) 'adminId': adminIdActivo,
-                'fecha': FieldValue.serverTimestamp(),
-              });
+              await ClientService.registrarCliente(
+                nombre: nombre,
+                telefono: telefono,
+                direccion: direccion,
+                adminId: adminIdActivo,
+              );
 
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -827,10 +827,16 @@ class _ClientsScreenState extends State<ClientsScreen> {
                 Navigator.pop(dialogContext);
 
                 final meta = await ClientService.obtenerMetadatosVenta(cliente.id);
+                final idVenta = await IdService.generarIdCompra(
+                  adminId: meta['adminId']?.toString(),
+                );
 
-                await _db.collection('compras').add({
+                await _db.collection('compras').doc(idVenta).set({
+                  'id': idVenta,
+                  'codigo': idVenta,
                   'clienteId': cliente.id,
                   'clienteNombre': cliente.nombre,
+                  'prendaId': seleccionada.id,
                   'prenda': seleccionada.nombre,
                   'prendaNombre': seleccionada.nombre,
                   'precio': seleccionada.precio,
@@ -1009,11 +1015,18 @@ class _ClientsScreenState extends State<ClientsScreen> {
                             Navigator.pop(sheetContext);
 
                             final meta = await ClientService.obtenerMetadatosPago(cliente.id);
+                            final idPago = await IdService.generarIdPago(
+                              adminId: meta['adminId']?.toString(),
+                            );
 
-                            await _db.collection('pagos').add({
+                            await _db.collection('pagos').doc(idPago).set({
+                              'id': idPago,
+                              'codigo': idPago,
                               'clienteId': cliente.id,
                               'clienteNombre': cliente.nombre,
                               'monto': monto,
+                              'formaPago': 'Efectivo',
+                              'metodoPago': 'Efectivo',
                               'observacion': 'Abono desde clientas',
                               'fecha': FieldValue.serverTimestamp(),
                               ...meta,

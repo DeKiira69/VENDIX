@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'id_service.dart';
 
 class GoogleAuthService {
   GoogleAuthService._();
@@ -109,6 +110,7 @@ class GoogleAuthService {
     String adminId = '',
     String secretarioId = '',
     String codigoLive = '',
+    String nombreEmprendimiento = '',
   }) async {
     final lote = _db.batch();
     final uid = usuario.uid;
@@ -127,9 +129,15 @@ class GoogleAuthService {
     final nombreCompleto = '$finalNombre $finalApellido'.trim();
 
     if (rol == 'cliente') {
+      final idCliente = await IdService.generarIdCliente(nombreCompleto);
+
       // 1. Guardar en 'usuarios'
       final docUsuario = _db.collection('usuarios').doc(uid);
       final Map<String, dynamic> datosUsuario = {
+        'uid': uid,
+        'firebaseUid': uid,
+        'clienteDocId': idCliente,
+        'codigo': idCliente,
         'nombre': finalNombre,
         'apellido': finalApellido,
         'correo': email,
@@ -147,15 +155,20 @@ class GoogleAuthService {
       if (codigoLive.isNotEmpty) datosUsuario['codigoLive'] = codigoLive;
       lote.set(docUsuario, datosUsuario, SetOptions(merge: true));
 
-      // 2. Guardar en 'clientes'
-      final docCliente = _db.collection('clientes').doc(uid);
+      // 2. Guardar en 'clientes' con identificador legible cliNNN_NombreApellido
+      final docCliente = _db.collection('clientes').doc(idCliente);
       final Map<String, dynamic> datosCliente = {
+        'id': idCliente,
+        'codigo': idCliente,
         'nombre': nombreCompleto,
         'telefono': telefono.trim(),
         'direccion': direccion.trim(),
         'correo': email,
         'uid': uid,
+        'firebaseUid': uid,
         'fotoUrl': fotoUrl,
+        'totalCompras': 0.0,
+        'totalPagado': 0.0,
         'creadoEn': FieldValue.serverTimestamp(),
         'metodo_registro': 'google',
       };
@@ -175,9 +188,15 @@ class GoogleAuthService {
         }, SetOptions(merge: true));
       }
     } else if (rol == 'secretario' || rol == 'secretaria') {
+      final idSec = await IdService.generarIdSecretario('$finalNombre $finalApellido');
+
       // 1. Guardar en 'usuarios' como pendiente
       final docUsuario = _db.collection('usuarios').doc(uid);
       lote.set(docUsuario, {
+        'uid': uid,
+        'firebaseUid': uid,
+        'secretarioDocId': idSec,
+        'codigo': idSec,
         'nombre': finalNombre,
         'apellido': finalApellido,
         'correo': email,
@@ -192,9 +211,13 @@ class GoogleAuthService {
         'metodo_registro': 'google',
       }, SetOptions(merge: true));
 
-      // 2. Guardar en 'secretarios'
-      final docSecretario = _db.collection('secretarios').doc(uid);
+      // 2. Guardar en 'secretarios' con identificador SecreNNN_NombreApellido
+      final docSecretario = _db.collection('secretarios').doc(idSec);
       lote.set(docSecretario, {
+        'id': idSec,
+        'codigo': idSec,
+        'uid': uid,
+        'firebaseUid': uid,
         'nombre': finalNombre,
         'apellido': finalApellido,
         'correo': email,
@@ -219,12 +242,20 @@ class GoogleAuthService {
         }, SetOptions(merge: true));
       }
     } else if (rol == 'administrador' || rol == 'admin') {
+      final idAdmin = await IdService.generarIdAdministrador('$finalNombre $finalApellido');
+      final empFinal = nombreEmprendimiento.trim();
+
       // 1. Guardar en 'usuarios' como administrador activo
       final docUsuario = _db.collection('usuarios').doc(uid);
       lote.set(docUsuario, {
         'uid': uid,
+        'firebaseUid': uid,
+        'adminId': idAdmin,
+        'codigo': idAdmin,
         'nombre': finalNombre,
         'apellido': finalApellido,
+        'nombreEmprendimiento': empFinal,
+        'emprendimiento': empFinal,
         'correo': email,
         'telefono': telefono.trim(),
         'direccion': direccion.trim(),
@@ -239,12 +270,17 @@ class GoogleAuthService {
         'metodo_registro': 'google',
       }, SetOptions(merge: true));
 
-      // 2. Guardar en 'Administradores'
-      final docAdmin = _db.collection('Administradores').doc(uid);
+      // 2. Guardar en 'Administradores' con identificador AdminNNN_NombreApellido
+      final docAdmin = _db.collection('Administradores').doc(idAdmin);
       lote.set(docAdmin, {
+        'id': idAdmin,
+        'codigo': idAdmin,
         'uid': uid,
+        'firebaseUid': uid,
         'nombre': finalNombre,
         'apellido': finalApellido,
+        'nombreEmprendimiento': empFinal,
+        'emprendimiento': empFinal,
         'correo': email,
         'telefono': telefono.trim(),
         'direccionTienda': '',

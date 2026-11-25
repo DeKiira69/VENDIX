@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'id_service.dart';
 
 class ClientService {
   ClientService._();
@@ -39,7 +40,7 @@ class ClientService {
   // CLIENTES
   // ============================================================
 
-  // Busca la ficha del cliente vinculado a la cuenta actual en tiempo real sin deadlocks.
+  // Busca la ficha del cliente vinculado a la cuenta actual en tiempo real.
   static Stream<Map<String, dynamic>?> clienteActual() {
     final usuarioId = uid;
 
@@ -69,13 +70,14 @@ class ClientService {
     });
   }
 
-  // Registra una nueva ficha comercial.
+  // Registra una nueva ficha comercial con identificador consecutivo cliNNN_NombreApellido.
   static Future<String> registrarCliente({
     required String nombre,
     required String telefono,
     String direccion = '',
     String? uidCliente,
     String correo = '',
+    String? adminId,
   }) async {
     final nombreLimpio = nombre.trim();
     final telefonoLimpio = telefono.trim();
@@ -86,18 +88,32 @@ class ClientService {
       );
     }
 
-    final referencia = _db.collection('clientes').doc();
+    final idCliente = await IdService.generarIdCliente(nombreLimpio);
+
+    String adminIdFinal = adminId ?? activeSecretaryAdminId ?? '';
+    if (adminIdFinal.isEmpty) {
+      adminIdFinal = uid ?? '';
+    }
+
+    final referencia = _db.collection('clientes').doc(idCliente);
 
     await referencia.set({
+      'id': idCliente,
+      'codigo': idCliente,
       'nombre': nombreLimpio,
       'telefono': telefonoLimpio,
       'direccion': direccion.trim(),
       'correo': correo.trim(),
-      'uid': uidCliente,
+      'uid': uidCliente ?? '',
+      'firebaseUid': uidCliente ?? '',
+      'adminId': adminIdFinal,
+      'saldoPendiente': 0.0,
+      'totalCompras': 0.0,
+      'totalPagado': 0.0,
       'creadoEn': FieldValue.serverTimestamp(),
     });
 
-    return referencia.id;
+    return idCliente;
   }
 
   // Actualiza los datos personales de un cliente en Firestore y Firebase Auth.
@@ -167,12 +183,14 @@ class ClientService {
         });
   }
 
-  // Registra una compra para un cliente.
+  // Registra una compra para un cliente con ID consecutivo VentNNN y trazabilidad completa.
   static Future<String> registrarCompra({
     required String clienteId,
     required String prendaNombre,
     required double precioUnitario,
     required int cantidad,
+    String? prendaId,
+    String? jornadaId,
   }) async {
     if (clienteId.trim().isEmpty ||
         prendaNombre.trim().isEmpty ||
@@ -183,11 +201,18 @@ class ClientService {
       );
     }
 
-    final referencia = _db.collection('compras').doc();
     final meta = await obtenerMetadatosVenta(clienteId);
+    final adminId = meta['adminId']?.toString() ?? '';
+    final idVenta = await IdService.generarIdCompra(adminId: adminId);
+    final referencia = _db.collection('compras').doc(idVenta);
+
+    final jornadaFinal = jornadaId ?? meta['jornadaId'];
 
     await referencia.set({
+      'id': idVenta,
+      'codigo': idVenta,
       'clienteId': clienteId,
+      'prendaId': prendaId,
       'prendaNombre': prendaNombre.trim(),
       'prenda': prendaNombre.trim(),
       'precioUnitario': precioUnitario,
@@ -195,11 +220,12 @@ class ClientService {
       'cantidad': cantidad,
       'subtotal': precioUnitario * cantidad,
       'total': precioUnitario * cantidad,
+      'jornadaId': jornadaFinal,
       'fecha': FieldValue.serverTimestamp(),
       ...meta,
     });
 
-    return referencia.id;
+    return idVenta;
   }
 
   // ============================================================
@@ -225,11 +251,13 @@ class ClientService {
         });
   }
 
-  // Registra un abono para un cliente.
+  // Registra un abono para un cliente con ID consecutivo PagoNNN y trazabilidad de recaudación.
   static Future<String> registrarPago({
     required String clienteId,
     required double monto,
     String observacion = '',
+    String formaPago = 'Efectivo',
+    String? jornadaId,
   }) async {
     if (clienteId.trim().isEmpty || monto <= 0) {
       throw ArgumentError(
@@ -237,35 +265,44 @@ class ClientService {
       );
     }
 
-    final referencia = _db.collection('pagos').doc();
     final meta = await obtenerMetadatosPago(clienteId);
+    final adminId = meta['adminId']?.toString() ?? '';
+    final idPago = await IdService.generarIdPago(adminId: adminId);
+    final referencia = _db.collection('pagos').doc(idPago);
+
+    final jornadaFinal = jornadaId ?? meta['jornadaId'];
 
     await referencia.set({
+      'id': idPago,
+      'codigo': idPago,
       'clienteId': clienteId,
       'monto': monto,
+      'formaPago': formaPago,
+      'metodoPago': formaPago,
       'observacion': observacion.trim(),
+      'jornadaId': jornadaFinal,
       'fecha': FieldValue.serverTimestamp(),
       ...meta,
     });
 
-    return referencia.id;
+    return idPago;
   }
 
   // ============================================================
-  // CÁLCULOS Y UTILIDADES
+  // CÁLCULOS Y METADATOS DE TRAZABILIDAD
   // ============================================================
 
-  /// Resuelve los metadatos de autoría y tienda (adminId) para vincular cada venta.
+  /// Resuelve los metadatos de autoría, tienda (adminId) y jornada activa para vincular cada venta.
   static Future<Map<String, dynamic>> obtenerMetadatosVenta(String clienteId) async {
     final user = FirebaseAuth.instance.currentUser;
-    final uid = user?.uid ?? '';
+    final userUid = user?.uid ?? '';
     String adminId = activeSecretaryAdminId ?? '';
     String rolResponsable = 'secretario';
     String registradoPorNombre = user?.displayName ?? '';
 
-    if (uid.isNotEmpty) {
+    if (userUid.isNotEmpty) {
       try {
-        final uDoc = await _db.collection('usuarios').doc(uid).get();
+        final uDoc = await _db.collection('usuarios').doc(userUid).get();
         final uData = uDoc.data() ?? {};
         final rol = uData['rol']?.toString().toLowerCase() ?? '';
         final nom = uData['nombre']?.toString() ?? '';
@@ -275,7 +312,9 @@ class ClientService {
 
         if (rol == 'administrador' || rol == 'admin') {
           rolResponsable = 'administrador';
-          if (adminId.isEmpty) adminId = uid;
+          if (adminId.isEmpty) {
+            adminId = uData['adminId']?.toString() ?? userUid;
+          }
         } else {
           if (adminId.isEmpty) {
             adminId = uData['adminId']?.toString() ?? '';
@@ -291,38 +330,57 @@ class ClientService {
       } catch (_) {}
     }
 
+    // Vincular jornada activa si existe para este emprendimiento
+    String? jornadaId;
+    if (adminId.isNotEmpty) {
+      try {
+        final jSnap = await _db
+            .collection('jornadas')
+            .where('adminId', isEqualTo: adminId)
+            .where('estado', isEqualTo: 'activa')
+            .limit(1)
+            .get();
+        if (jSnap.docs.isNotEmpty) {
+          jornadaId = jSnap.docs.first.id;
+        }
+      } catch (_) {}
+    }
+
     return {
       'adminId': adminId,
-      'registradoPorId': uid,
+      'registradoPorId': userUid,
       'registradoPorNombre': registradoPorNombre.isNotEmpty
           ? registradoPorNombre
           : (rolResponsable == 'administrador' ? 'Emprendedor' : 'Secretario'),
       'rolResponsable': rolResponsable,
       'estado': 'confirmada',
+      'jornadaId': jornadaId,
     };
   }
 
   /// Resuelve los metadatos de autoría y tienda para registrar pagos.
   static Future<Map<String, dynamic>> obtenerMetadatosPago(String clienteId) async {
     final user = FirebaseAuth.instance.currentUser;
-    final uid = user?.uid ?? '';
+    final userUid = user?.uid ?? '';
     String adminId = activeSecretaryAdminId ?? '';
     String rolResponsable = 'secretario';
-    String cobradoPorNombre = user?.displayName ?? '';
+    String recibidoPorNombre = user?.displayName ?? '';
 
-    if (uid.isNotEmpty) {
+    if (userUid.isNotEmpty) {
       try {
-        final uDoc = await _db.collection('usuarios').doc(uid).get();
+        final uDoc = await _db.collection('usuarios').doc(userUid).get();
         final uData = uDoc.data() ?? {};
         final rol = uData['rol']?.toString().toLowerCase() ?? '';
         final nom = uData['nombre']?.toString() ?? '';
         final ape = uData['apellido']?.toString() ?? '';
         final nComp = [nom, ape].where((s) => s.isNotEmpty).join(' ');
-        if (nComp.isNotEmpty) cobradoPorNombre = nComp;
+        if (nComp.isNotEmpty) recibidoPorNombre = nComp;
 
         if (rol == 'administrador' || rol == 'admin') {
           rolResponsable = 'administrador';
-          if (adminId.isEmpty) adminId = uid;
+          if (adminId.isEmpty) {
+            adminId = uData['adminId']?.toString() ?? userUid;
+          }
         } else {
           if (adminId.isEmpty) {
             adminId = uData['adminId']?.toString() ?? '';
@@ -338,14 +396,34 @@ class ClientService {
       } catch (_) {}
     }
 
+    // Vincular jornada activa si existe para este emprendimiento
+    String? jornadaId;
+    if (adminId.isNotEmpty) {
+      try {
+        final jSnap = await _db
+            .collection('jornadas')
+            .where('adminId', isEqualTo: adminId)
+            .where('estado', isEqualTo: 'activa')
+            .limit(1)
+            .get();
+        if (jSnap.docs.isNotEmpty) {
+          jornadaId = jSnap.docs.first.id;
+        }
+      } catch (_) {}
+    }
+
     return {
       'adminId': adminId,
-      'registradoPorId': uid,
-      'cobradoPorId': uid,
-      'cobradoPorNombre': cobradoPorNombre.isNotEmpty
-          ? cobradoPorNombre
+      'recibidoPorId': userUid,
+      'recibidoPorNombre': recibidoPorNombre.isNotEmpty
+          ? recibidoPorNombre
+          : (rolResponsable == 'administrador' ? 'Emprendedor' : 'Secretario'),
+      'cobradoPorId': userUid,
+      'cobradoPorNombre': recibidoPorNombre.isNotEmpty
+          ? recibidoPorNombre
           : (rolResponsable == 'administrador' ? 'Emprendedor' : 'Secretario'),
       'rolResponsable': rolResponsable,
+      'jornadaId': jornadaId,
     };
   }
 

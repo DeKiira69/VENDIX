@@ -1,32 +1,55 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/prenda_model.dart';
+import '../services/client_service.dart';
+import '../services/id_service.dart';
 
 class PrendaService {
   final CollectionReference _prendasRef =
       FirebaseFirestore.instance.collection('prendas');
 
-  // Stream en tiempo real de todas las prendas ordenadas por nombre
-  Stream<List<PrendaModel>> getPrendasStream() {
-    return _prendasRef.snapshots().map((snapshot) {
+  // Stream en tiempo real de todas las prendas filtrables por negocio
+  Stream<List<PrendaModel>> getPrendasStream({String? adminId}) {
+    Query query = _prendasRef;
+    if (adminId != null && adminId.isNotEmpty) {
+      query = query.where('adminId', isEqualTo: adminId);
+    }
+    return query.snapshots().map((snapshot) {
       return snapshot.docs
           .map((doc) => PrendaModel.fromFirestore(doc))
           .toList();
     });
   }
 
-  // Agregar nueva prenda a Firestore
-  Future<void> agregarPrenda({
+  // Agregar nueva prenda a Firestore con ID consecutivo legible: PrendNNN_NombrePrenda
+  Future<String> agregarPrenda({
     required String nombre,
     required double precio,
     int stock = 0,
+    String? adminId,
   }) async {
-    await _prendasRef.add({
+    final idPrenda = await IdService.generarIdPrenda(nombre);
+
+    String adminIdFinal = adminId ?? '';
+    if (adminIdFinal.isEmpty) {
+      adminIdFinal = ClientService.activeSecretaryAdminId ?? '';
+    }
+    if (adminIdFinal.isEmpty) {
+      adminIdFinal = FirebaseAuth.instance.currentUser?.uid ?? '';
+    }
+
+    await _prendasRef.doc(idPrenda).set({
+      'id': idPrenda,
+      'codigo': idPrenda,
+      'adminId': adminIdFinal,
       'nombre': nombre.trim(),
       'precio': precio,
       'activa': true,
       'stock': stock,
       'fecha_creacion': FieldValue.serverTimestamp(),
     });
+
+    return idPrenda;
   }
 
   // Editar prenda existente

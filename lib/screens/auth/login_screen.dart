@@ -96,8 +96,9 @@ class _LoginScreenState extends State<LoginScreen> {
       return const SecretaryShell();
     } else if (rol == 'administrador' || rol == 'admin') {
       final nombre = datos['nombre'] ?? usuario.displayName ?? 'Administrador';
+      final adminId = datos['adminId']?.toString().trim();
       final admin = AdministradorModel(
-        id: usuario.uid,
+        id: (adminId != null && adminId.isNotEmpty) ? adminId : usuario.uid,
         nombre: nombre,
         apellido: datos['apellido'] ?? '',
         correo: datos['correo'] ?? usuario.email ?? '',
@@ -145,7 +146,11 @@ class _LoginScreenState extends State<LoginScreen> {
     // 3. CONSULTAS DE RESPALDO EN PARALELO (Future.wait)
     try {
       final futures = <Future<dynamic>>[
-        FirebaseFirestore.instance.collection('Administradores').doc(uid).get(),
+        FirebaseFirestore.instance
+            .collection('Administradores')
+            .where('uid', isEqualTo: uid)
+            .limit(1)
+            .get(),
         FirebaseFirestore.instance.collection('clientes').doc(uid).get(),
         FirebaseFirestore.instance
             .collection('clientes')
@@ -167,13 +172,14 @@ class _LoginScreenState extends State<LoginScreen> {
       final respuestas = await Future.wait(futures)
           .timeout(const Duration(seconds: 4));
 
-      final adminDoc = respuestas[0] as DocumentSnapshot<Map<String, dynamic>>;
+      final adminQuery = respuestas[0] as QuerySnapshot<Map<String, dynamic>>;
       final clienteDocDirecto =
           respuestas[1] as DocumentSnapshot<Map<String, dynamic>>;
       final clienteQuery = respuestas[2] as QuerySnapshot<Map<String, dynamic>>;
 
-      if (adminDoc.exists && adminDoc.data() != null) {
-        final admin = AdministradorModel.fromMap(adminDoc.id, adminDoc.data()!);
+      if (adminQuery.docs.isNotEmpty) {
+        final doc = adminQuery.docs.first;
+        final admin = AdministradorModel.fromMap(doc.id, doc.data());
         return AdminHomeScreen(admin: admin);
       }
 
@@ -287,7 +293,6 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() => _cargando = false);
         await _mostrarModalDatosGoogle(
           usuario: usuario,
-          rol: 'cliente',
         );
         return;
       }
@@ -308,10 +313,9 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  /// Modal para completar Nombre, Apellido, Dirección (opcional) y Teléfono (opcional)
+  /// Modal para completar Nombre, Apellido y Teléfono (opcional) con Google
   Future<void> _mostrarModalDatosGoogle({
     required User usuario,
-    required String rol,
   }) async {
     final partes = (usuario.displayName ?? '').trim().split(RegExp(r'\s+'));
     final nombreDefecto = partes.isNotEmpty ? partes.first : '';
@@ -321,7 +325,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final nombreCtrl = TextEditingController(text: nombreDefecto);
     final apellidoCtrl = TextEditingController(text: apellidoDefecto);
-    final direccionCtrl = TextEditingController();
     final telefonoCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
@@ -359,12 +362,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 18),
-                  Text(
-                    rol == 'administrador'
-                        ? 'Completa tus datos de Emprendedor'
-                        : 'Completa tus datos personales',
+                  const Text(
+                    'Completa tus datos personales',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: texto,
@@ -435,30 +436,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  // Dirección (opcional)
-                  const Text(
-                    'Dirección (opcional)',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                  ),
-                  const SizedBox(height: 6),
-                  TextFormField(
-                    controller: direccionCtrl,
-                    decoration: InputDecoration(
-                      hintText: 'Ej. Av. Amazonas y Colón (opcional)',
-                      prefixIcon: const Icon(
-                        Icons.location_on_outlined,
-                        color: violeta,
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xFFFAF8FC),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xFFECE6F2)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
                   // Teléfono (opcional)
                   const Text(
                     'Número de teléfono (opcional)',
@@ -501,25 +478,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         try {
                           await GoogleAuthService.registrarUsuarioGoogle(
                             usuario: usuario,
-                            rol: rol,
+                            rol: 'cliente',
                             nombre: nombreCtrl.text.trim(),
                             apellido: apellidoCtrl.text.trim(),
-                            direccion: direccionCtrl.text.trim(),
+                            direccion: '',
                             telefono: telefonoCtrl.text.trim(),
                           );
-
-                          if (rol == 'cliente' || rol == 'administrador') {
-                            await _abrirInterfazPorRol(usuario);
-                          } else {
-                            await FirebaseAuth.instance.signOut();
-                            ClientService.limpiarCache();
-                            if (mounted) {
-                              _mostrarDialogoPendiente(
-                                'Tu cuenta de secretario ha sido registrada con tu cuenta de Google.\n\n'
-                                'Se encuentra en estado PENDIENTE. El administrador debe verificarla y activarla antes de tu acceso.',
-                              );
-                            }
-                          }
+                          if (!mounted) return;
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(builder: (_) => const ClientWelcomeHubScreen()),
+                            (route) => false,
+                          );
                         } catch (e) {
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(

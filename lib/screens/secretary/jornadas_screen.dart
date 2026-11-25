@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/client_service.dart';
+import '../../services/id_service.dart';
 import '../../theme/app_theme.dart';
 
 class JornadasScreen extends StatefulWidget {
@@ -54,19 +57,47 @@ class _JornadasScreenState extends State<JornadasScreen> {
     nombreController.dispose();
     if (nombre == null || !mounted) return;
 
-    await _db.collection('jornadas').add({
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    String adminId = ClientService.activeSecretaryAdminId ?? '';
+    String creadorNombre = 'Usuario';
+    if (uid.isNotEmpty) {
+      try {
+        final uDoc = await _db.collection('usuarios').doc(uid).get();
+        final uData = uDoc.data() ?? {};
+        if (adminId.isEmpty) {
+          adminId = uData['adminId']?.toString() ?? uid;
+        }
+        creadorNombre = uData['nombre']?.toString() ?? 'Usuario';
+      } catch (_) {}
+    }
+
+    final idJornada = await IdService.generarIdJornada(nombre, adminId: adminId);
+
+    await _db.collection('jornadas').doc(idJornada).set({
+      'id': idJornada,
+      'codigo': idJornada,
+      'adminId': adminId,
       'nombre': nombre,
       'fecha': FieldValue.serverTimestamp(),
       'estado': 'pendiente',
       'horaInicio': null,
       'horaFin': null,
+      'creadoPorId': uid,
+      'creadoPorNombre': creadorNombre,
     });
     _mostrarMensaje('Jornada "$nombre" creada. ¡Iníciala cuando estés lista!');
   }
 
   Future<void> _iniciarJornada(String docId, String nombre) async {
-    // Verificar que no haya otra activa
-    final activas = await _db.collection('jornadas').where('estado', isEqualTo: 'activa').get();
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final adminId = ClientService.activeSecretaryAdminId ?? uid;
+
+    // Verificar que no haya otra activa para esta tienda
+    Query queryActivas = _db.collection('jornadas').where('estado', isEqualTo: 'activa');
+    if (adminId.isNotEmpty) {
+      queryActivas = queryActivas.where('adminId', isEqualTo: adminId);
+    }
+    final activas = await queryActivas.get();
     if (activas.docs.isNotEmpty) {
       _mostrarMensaje('Ya hay un live en curso: "${activas.docs.first['nombre']}". Ciérralo primero.');
       return;
@@ -230,7 +261,13 @@ class _JornadasScreenState extends State<JornadasScreen> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          final docs = snapshot.data?.docs ?? [];
+          final adminIdActivo = ClientService.activeSecretaryAdminId ?? FirebaseAuth.instance.currentUser?.uid ?? '';
+          final rawDocs = snapshot.data?.docs ?? [];
+          final docs = rawDocs.where((d) {
+            final data = d.data() as Map<String, dynamic>;
+            final aId = data['adminId']?.toString() ?? '';
+            return adminIdActivo.isEmpty || aId.isEmpty || aId == adminIdActivo;
+          }).toList();
           final activas = docs.where((d) => d['estado'] == 'activa').toList();
           final pendientes = docs.where((d) => d['estado'] == 'pendiente').toList();
           final cerradas = docs.where((d) => d['estado'] == 'cerrada').toList();

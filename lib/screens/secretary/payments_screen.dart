@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/client_service.dart';
+import '../../services/id_service.dart';
 import '../../theme/app_theme.dart';
 
 class PaymentsScreen extends StatefulWidget {
@@ -54,11 +55,17 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
 
     final observacion = _observacionController.text.trim();
     final meta = await ClientService.obtenerMetadatosPago(_clienteSeleccionadoId!);
+    final adminId = meta['adminId']?.toString() ?? '';
+    final idPago = await IdService.generarIdPago(adminId: adminId);
 
-    await _db.collection('pagos').add({
+    await _db.collection('pagos').doc(idPago).set({
+      'id': idPago,
+      'codigo': idPago,
       'clienteId': _clienteSeleccionadoId,
       'clienteNombre': _clienteSeleccionadoNombre,
       'monto': monto,
+      'formaPago': 'Efectivo',
+      'metodoPago': 'Efectivo',
       'observacion': observacion,
       'fecha': FieldValue.serverTimestamp(),
       ...meta,

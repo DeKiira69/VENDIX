@@ -2,9 +2,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../models/administrador_model.dart';
 import '../../services/client_service.dart';
+import '../../services/id_service.dart';
 import '../../services/perfil_foto_service.dart';
 import '../../theme/app_theme.dart';
+import '../admin/admin_home_screen.dart';
 import '../auth/login_screen.dart';
 import '../secretary/secretary_shell.dart';
 import 'client_shell.dart';
@@ -94,6 +97,212 @@ class _ClientWelcomeHubScreenState extends State<ClientWelcomeHubScreen> {
     } catch (_) {
       if (mounted) setState(() => _cargando = false);
     }
+  }
+
+  /// Modal para crear emprendimiento: pide solo el nombre de la tienda.
+  void _mostrarModalEmprendedor() {
+    final formKey = GlobalKey<FormState>();
+    final emprendimientoCtrl = TextEditingController();
+    bool guardando = false;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (bottomCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Container(
+              padding: EdgeInsets.only(
+                left: 22,
+                right: 22,
+                top: 20,
+                bottom: MediaQuery.of(bottomCtx).viewInsets.bottom + 24,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+              ),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      'Crear mi emprendimiento',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF241B35),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Ingresa el nombre de tu negocio para comenzar a vender en VendiX.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12, color: Color(0xFF81798D)),
+                    ),
+                    const SizedBox(height: 20),
+
+                    const Text(
+                      'Nombre del emprendimiento',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                    ),
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: emprendimientoCtrl,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: InputDecoration(
+                        hintText: 'Ej. Boutique Bella',
+                        prefixIcon: const Icon(
+                          Icons.storefront_outlined,
+                          color: Color(0xFF2E7D32),
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFFAF8FC),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(color: Color(0xFFECE6F2)),
+                        ),
+                      ),
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Ingresa el nombre del emprendimiento'
+                          : null,
+                    ),
+                    const SizedBox(height: 24),
+
+                    SizedBox(
+                      height: 50,
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF2E7D32),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        onPressed: guardando
+                            ? null
+                            : () async {
+                                if (!formKey.currentState!.validate()) return;
+                                setModalState(() => guardando = true);
+
+                                try {
+                                  final user = FirebaseAuth.instance.currentUser;
+                                  if (user == null) throw Exception('No hay sesión activa.');
+
+                                  final uid = user.uid;
+                                  final db = FirebaseFirestore.instance;
+                                  final nombreEmprendimiento = emprendimientoCtrl.text.trim();
+
+                                  // Leer datos actuales del usuario
+                                  final userDoc = await db.collection('usuarios').doc(uid).get();
+                                  final userData = userDoc.data() ?? {};
+                                  final nombre = userData['nombre']?.toString() ?? '';
+                                  final apellido = userData['apellido']?.toString() ?? '';
+                                  final correo = userData['correo']?.toString() ?? user.email ?? '';
+                                  final telefono = userData['telefono']?.toString() ?? '';
+                                  final fotoUrl = userData['fotoUrl']?.toString() ?? user.photoURL ?? '';
+
+                                  final idAdmin = await IdService.generarIdAdministrador('$nombre $apellido');
+                                  final lote = db.batch();
+
+                                  // Crear documento en Administradores
+                                  lote.set(db.collection('Administradores').doc(idAdmin), {
+                                    'id': idAdmin,
+                                    'codigo': idAdmin,
+                                    'uid': uid,
+                                    'firebaseUid': uid,
+                                    'nombre': nombre,
+                                    'apellido': apellido,
+                                    'nombreEmprendimiento': nombreEmprendimiento,
+                                    'correo': correo,
+                                    'telefono': telefono,
+                                    'direccionTienda': '',
+                                    'latitudTienda': null,
+                                    'longitudTienda': null,
+                                    'fotoUrl': fotoUrl,
+                                    'estado': true,
+                                    'creadoEn': FieldValue.serverTimestamp(),
+                                    'metodo_registro': userData['metodo_registro'] ?? 'google',
+                                  });
+
+                                  // Actualizar documento en usuarios para cambiar rol
+                                  lote.set(db.collection('usuarios').doc(uid), {
+                                    'rol': 'administrador',
+                                    'adminId': idAdmin,
+                                    'nombreEmprendimiento': nombreEmprendimiento,
+                                    'actualizadoEn': FieldValue.serverTimestamp(),
+                                  }, SetOptions(merge: true));
+
+                                  await lote.commit();
+
+                                  if (!bottomCtx.mounted) return;
+                                  Navigator.pop(bottomCtx);
+
+                                  if (!mounted) return;
+
+                                  final admin = AdministradorModel(
+                                    id: idAdmin,
+                                    nombre: nombre,
+                                    apellido: apellido,
+                                    nombreEmprendimiento: nombreEmprendimiento,
+                                    correo: correo,
+                                    telefono: telefono,
+                                    estado: true,
+                                  );
+
+                                  Navigator.of(context).pushAndRemoveUntil(
+                                    MaterialPageRoute(builder: (_) => AdminHomeScreen(admin: admin)),
+                                    (route) => false,
+                                  );
+                                } catch (e) {
+                                  setModalState(() => guardando = false);
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Error al crear emprendimiento: $e')),
+                                    );
+                                  }
+                                }
+                              },
+                        child: guardando
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'Crear emprendimiento',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   /// Activa una tienda como la tienda activa y navega a ClientShell
@@ -265,6 +474,19 @@ class _ClientWelcomeHubScreenState extends State<ClientWelcomeHubScreen> {
                         MaterialPageRoute(builder: (_) => const SolicitudEmpleoScreen()),
                       );
                     },
+                  ),
+                  const SizedBox(height: 14),
+                  _HubCard(
+                    titulo: 'Trabajar como emprendedor',
+                    subtitulo:
+                        'Crea tu propia tienda en VendiX, registra prendas, gestiona ventas en vivo y haz crecer tu negocio.',
+                    etiqueta: 'EMPRENDIMIENTO',
+                    etiquetaColor: const Color(0xFF2E7D32),
+                    icono: Icons.storefront_outlined,
+                    colorFondoIcono: const Color(0xFFE8F5E9),
+                    colorIcono: const Color(0xFF2E7D32),
+                    botonTexto: 'Crear mi emprendimiento',
+                    onTap: () => _mostrarModalEmprendedor(),
                   ),
                 ],
 

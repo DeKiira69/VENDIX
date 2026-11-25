@@ -19,7 +19,6 @@ class _RegisterEntrepreneurScreenState
   final _nombre = TextEditingController();
   final _telefono = TextEditingController();
   final _correo = TextEditingController();
-  final _direccion = TextEditingController();
   final _contrasena = TextEditingController();
   final _confirmacion = TextEditingController();
 
@@ -34,7 +33,6 @@ class _RegisterEntrepreneurScreenState
     _nombre.dispose();
     _telefono.dispose();
     _correo.dispose();
-    _direccion.dispose();
     _contrasena.dispose();
     _confirmacion.dispose();
     super.dispose();
@@ -82,7 +80,7 @@ class _RegisterEntrepreneurScreenState
       final nombreCompleto = _nombre.text.trim();
       final email = _correo.text.trim();
       final telefono = _telefono.text.trim();
-      final direccion = _direccion.text.trim();
+      const direccion = '';
 
       final db = FirebaseFirestore.instance;
       final lote = db.batch();
@@ -243,7 +241,6 @@ class _RegisterEntrepreneurScreenState
 
     final nombreCtrl = TextEditingController(text: nombreDefecto);
     final apellidoCtrl = TextEditingController(text: apellidoDefecto);
-    final direccionCtrl = TextEditingController(text: _direccion.text.trim());
     final telefonoCtrl = TextEditingController(text: _telefono.text.trim());
     final formKey = GlobalKey<FormState>();
 
@@ -336,24 +333,6 @@ class _RegisterEntrepreneurScreenState
                   ),
                   const SizedBox(height: 14),
 
-                  // Dirección (opcional)
-                  const Text('Dirección (opcional)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                  const SizedBox(height: 6),
-                  TextFormField(
-                    controller: direccionCtrl,
-                    decoration: InputDecoration(
-                      hintText: 'Ej. Av. Amazonas y Colón (opcional)',
-                      prefixIcon: const Icon(Icons.location_on_outlined, color: violeta),
-                      filled: true,
-                      fillColor: const Color(0xFFFAF8FC),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xFFECE6F2)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
                   // Teléfono (opcional)
                   const Text('Número de teléfono (opcional)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                   const SizedBox(height: 6),
@@ -393,7 +372,7 @@ class _RegisterEntrepreneurScreenState
                             rol: 'secretario',
                             nombre: nombreCtrl.text.trim(),
                             apellido: apellidoCtrl.text.trim(),
-                            direccion: direccionCtrl.text.trim(),
+                            direccion: '',
                             telefono: telefonoCtrl.text.trim(),
                           );
 
@@ -563,21 +542,15 @@ class _RegisterEntrepreneurScreenState
                       ),
                       const SizedBox(height: 16),
 
-                      const Text('Número de teléfono', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const Text('Número de teléfono (opcional)', style: TextStyle(fontWeight: FontWeight.w600)),
                       const SizedBox(height: 7),
                       TextFormField(
                         controller: _telefono,
                         keyboardType: TextInputType.phone,
                         decoration: _decoracion(
-                          'Ej. 099 123 4567',
+                          'Ej. 099 123 4567 (opcional)',
                           Icons.phone_outlined,
                         ),
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) {
-                            return 'Ingresa tu número de teléfono.';
-                          }
-                          return null;
-                        },
                       ),
                       const SizedBox(height: 16),
 
@@ -599,18 +572,6 @@ class _RegisterEntrepreneurScreenState
                           }
                           return null;
                         },
-                      ),
-                      const SizedBox(height: 16),
-
-                      const Text('Dirección', style: TextStyle(fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 7),
-                      TextFormField(
-                        controller: _direccion,
-                        textCapitalization: TextCapitalization.sentences,
-                        decoration: _decoracion(
-                          'Dirección de domicilio (opcional)',
-                          Icons.location_on_outlined,
-                        ),
                       ),
                       const SizedBox(height: 16),
 
