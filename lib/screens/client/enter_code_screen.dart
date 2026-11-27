@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../services/client_service.dart';
+import '../../services/invitation_code_service.dart';
 import 'client_shell.dart';
 
 /// Pantalla que se muestra cuando el cliente ya se registró pero aún
@@ -9,7 +10,9 @@ import 'client_shell.dart';
 /// saltar. El usuario debe ingresar un código válido de un secretario
 /// o cerrar sesión y usar otra cuenta.
 class EnterCodeScreen extends StatefulWidget {
-  const EnterCodeScreen({super.key});
+  final String? codigoInicial;
+
+  const EnterCodeScreen({super.key, this.codigoInicial});
 
   @override
   State<EnterCodeScreen> createState() => _EnterCodeScreenState();
@@ -21,6 +24,15 @@ class _EnterCodeScreenState extends State<EnterCodeScreen> {
 
   static const violeta = Color(0xFF6C4AB6);
   static const rosa = Color(0xFFE9A6C8);
+
+  @override
+  void initState() {
+    super.initState();
+    final inicial = widget.codigoInicial;
+    if (inicial != null && inicial.trim().isNotEmpty) {
+      _codigoCtrl.text = InvitationCodeService.extraerCodigoDeEntrada(inicial);
+    }
+  }
 
   @override
   void dispose() {
@@ -50,67 +62,95 @@ class _EnterCodeScreenState extends State<EnterCodeScreen> {
 
       if (uid == null) throw Exception('No hay sesión activa.');
 
-      // Validar código contra la colección 'secretarios'
+      // Validar código contra 'secretarios' y, si no existe allí, contra 'Administradores'
       final querySec = await db
           .collection('secretarios')
           .where('codigoLive', isEqualTo: codigo)
           .limit(1)
           .get();
 
-      if (querySec.docs.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Código no válido o no activo. Pídelo al operador durante el Live.',
+      String adminId = '';
+      String secretarioId = '';
+      String nombreEmprendimiento = '';
+      String adminNombre = '';
+
+      if (querySec.docs.isNotEmpty) {
+        final dataSec = querySec.docs.first.data();
+        secretarioId = querySec.docs.first.id;
+
+        // Resolver adminId de forma ultra-robusta para evitar errores de ruta vacía
+        adminId = dataSec['adminId']?.toString().trim() ?? '';
+        if (adminId.isEmpty && dataSec['administradorId'] != null) {
+          adminId = dataSec['administradorId'].toString().trim();
+        }
+        if (adminId.isEmpty && secretarioId.contains('_')) {
+          adminId = secretarioId.split('_').last.trim();
+        }
+        if (adminId.isEmpty) {
+          final secUid =
+              dataSec['clienteId']?.toString() ?? dataSec['uid']?.toString() ?? '';
+          if (secUid.isNotEmpty) {
+            try {
+              final userDoc = await db.collection('usuarios').doc(secUid).get();
+              adminId = userDoc.data()?['adminId']?.toString().trim() ?? '';
+            } catch (_) {}
+          }
+        }
+
+        nombreEmprendimiento =
+            dataSec['nombreEmprendimiento']?.toString().trim() ?? '';
+        adminNombre = dataSec['adminNombre']?.toString().trim() ?? '';
+      } else {
+        final queryAdmin = await db
+            .collection('Administradores')
+            .where('codigoLive', isEqualTo: codigo)
+            .limit(1)
+            .get();
+
+        if (queryAdmin.docs.isEmpty) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Código no válido o no activo. Pídelo al emprendedor o al operador durante el Live.',
+                ),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 4),
               ),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 4),
-            ),
-          );
-          setState(() => _cargando = false);
+            );
+            setState(() => _cargando = false);
+          }
+          return;
         }
-        return;
+
+        final adminDocFound = queryAdmin.docs.first;
+        final adminData = adminDocFound.data();
+        adminId = adminDocFound.id;
+        nombreEmprendimiento =
+            adminData['nombreEmprendimiento']?.toString().trim() ??
+            adminData['negocio']?.toString().trim() ??
+            '';
+        final nom = adminData['nombre']?.toString().trim() ?? '';
+        final ape = adminData['apellido']?.toString().trim() ?? '';
+        adminNombre = [nom, ape].where((s) => s.isNotEmpty).join(' ');
       }
 
-      final dataSec = querySec.docs.first.data();
-      final secretarioId = querySec.docs.first.id;
-
-      // Resolver adminId de forma ultra-robusta para evitar errores de ruta vacía
-      String adminId = dataSec['adminId']?.toString().trim() ?? '';
-      if (adminId.isEmpty && dataSec['administradorId'] != null) {
-        adminId = dataSec['administradorId'].toString().trim();
-      }
-      if (adminId.isEmpty && secretarioId.contains('_')) {
-        adminId = secretarioId.split('_').last.trim();
-      }
-      if (adminId.isEmpty) {
-        final secUid = dataSec['clienteId']?.toString() ?? dataSec['uid']?.toString() ?? '';
-        if (secUid.isNotEmpty) {
-          try {
-            final userDoc = await db.collection('usuarios').doc(secUid).get();
-            adminId = userDoc.data()?['adminId']?.toString().trim() ?? '';
-          } catch (_) {}
-        }
-      }
-
-      // Obtener datos del emprendimiento para mis_tiendas
-      String nombreEmprendimiento = dataSec['nombreEmprendimiento']?.toString().trim() ?? '';
-      String adminNombre = dataSec['adminNombre']?.toString().trim() ?? '';
-      if (adminId.isNotEmpty) {
+      // Completar datos del emprendimiento desde Administradores si hace falta
+      if (adminId.isNotEmpty &&
+          (nombreEmprendimiento.isEmpty || adminNombre.isEmpty)) {
         try {
           final adminDoc = await db.collection('Administradores').doc(adminId).get();
           if (adminDoc.exists) {
             final adminData = adminDoc.data() ?? {};
             final nombreTienda = adminData['nombreEmprendimiento']?.toString().trim() ??
                 adminData['negocio']?.toString().trim() ?? '';
-            if (nombreTienda.isNotEmpty) {
+            if (nombreEmprendimiento.isEmpty && nombreTienda.isNotEmpty) {
               nombreEmprendimiento = nombreTienda;
             }
             final nom = adminData['nombre']?.toString().trim() ?? '';
             final ape = adminData['apellido']?.toString().trim() ?? '';
             final nombreCompleto = [nom, ape].where((s) => s.isNotEmpty).join(' ');
-            if (nombreCompleto.isNotEmpty) {
+            if (adminNombre.isEmpty && nombreCompleto.isNotEmpty) {
               adminNombre = nombreCompleto;
             }
           }

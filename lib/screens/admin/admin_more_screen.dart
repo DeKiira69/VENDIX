@@ -11,6 +11,7 @@ import '../secretary/payments_screen.dart';
 import '../auth/login_screen.dart';
 import '../../services/perfil_foto_service.dart';
 import '../../firebase_options.dart';
+import '../../widgets/qr/store_qr_dialog.dart';
 import '../../widgets/reports/export_report_dialog.dart';
 
 /// Pantalla "Más opciones" del admin – Figma fiel.
@@ -231,6 +232,17 @@ class AdminMoreScreen extends StatelessWidget {
               title: 'Exportar reportes comerciales',
               subtitle: 'Descargar Excel (.xlsx) o exportar a Google Sheets',
               onTap: () => ExportReportDialog.mostrar(context, adminIdManual: admin.id),
+            ),
+            const SizedBox(height: 8),
+
+            _buildActionCard(
+              context,
+              icon: Icons.qr_code_2_rounded,
+              iconBg: const Color(0xFFF0E9FC),
+              iconColor: AppTheme.violet,
+              title: 'Código QR del emprendimiento',
+              subtitle: 'Mostrar y compartir invitación para clientes',
+              onTap: () => StoreQrDialog.mostrar(context, admin: admin),
             ),
             const SizedBox(height: 26),
 
