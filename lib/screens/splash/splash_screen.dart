@@ -52,8 +52,11 @@ class _SplashScreenState extends State<SplashScreen> {
 
   /// Callback cuando el logo termina su animación de entrada (aprox 1.25s)
   void _onAnimacionEntradaTerminada() {
-    _animacionCompletada = true;
-    _intentarNavegacion();
+    Future.delayed(const Duration(milliseconds: 650), () {
+      if (!mounted) return;
+      _animacionCompletada = true;
+      _intentarNavegacion();
+    });
   }
 
   /// Navega suavemente si la animación terminó y el destino está listo
@@ -116,20 +119,29 @@ class _SplashScreenState extends State<SplashScreen> {
 
     // 3. RESPALDO EN COLECCIONES ESPECÍFICAS
     try {
-      final adminDoc = await FirebaseFirestore.instance
+      final adminQuery = await FirebaseFirestore.instance
           .collection('Administradores')
-          .doc(uid)
+          .where('uid', isEqualTo: uid)
+          .limit(1)
           .get();
-      if (adminDoc.exists) {
-        return _crearPantallaSegunRol({'rol': 'administrador'}, usuario);
+      if (adminQuery.docs.isNotEmpty) {
+        final doc = adminQuery.docs.first;
+        return _crearPantallaSegunRol(
+          {'rol': 'administrador', 'adminId': doc.id, ...doc.data()},
+          usuario,
+        );
       }
 
-      final clienteDoc = await FirebaseFirestore.instance
+      final clienteQuery = await FirebaseFirestore.instance
           .collection('clientes')
-          .doc(uid)
+          .where('uid', isEqualTo: uid)
+          .limit(1)
           .get();
-      if (clienteDoc.exists) {
-        return _crearPantallaSegunRol({'rol': 'cliente', ...?clienteDoc.data()}, usuario);
+      if (clienteQuery.docs.isNotEmpty) {
+        return _crearPantallaSegunRol(
+          {'rol': 'cliente', ...clienteQuery.docs.first.data()},
+          usuario,
+        );
       }
 
       if (email != null && email.isNotEmpty) {
@@ -166,10 +178,13 @@ class _SplashScreenState extends State<SplashScreen> {
       return const SecretaryShell();
     } else if (rol == 'administrador' || rol == 'admin') {
       final nombre = datos['nombre'] ?? usuario.displayName ?? 'Administrador';
+      final adminId = datos['adminId']?.toString().trim();
       final admin = AdministradorModel(
-        id: usuario.uid,
+        id: (adminId != null && adminId.isNotEmpty) ? adminId : usuario.uid,
         nombre: nombre,
         apellido: datos['apellido'] ?? '',
+        nombreEmprendimiento:
+            datos['nombreEmprendimiento'] ?? datos['emprendimiento'] ?? '',
         correo: datos['correo'] ?? usuario.email ?? '',
         telefono: datos['telefono'] ?? '',
         estado: datos['estado'] ?? true,

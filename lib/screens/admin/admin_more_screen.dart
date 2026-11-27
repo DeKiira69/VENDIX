@@ -627,7 +627,6 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
           stream: FirebaseFirestore.instance
               .collection('secretarios')
               .where('adminId', isEqualTo: widget.admin.id)
-              .orderBy('fecha_registro', descending: true)
               .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
@@ -663,7 +662,18 @@ class _SecretariosSectionState extends State<_SecretariosSection> {
               } else {
                 return !esPendiente;
               }
-            }).toList();
+            }).toList()
+              ..sort((a, b) {
+                final da = (a.data() as Map<String, dynamic>)['fecha_registro'];
+                final db = (b.data() as Map<String, dynamic>)['fecha_registro'];
+                final ta = da is Timestamp
+                    ? da.millisecondsSinceEpoch
+                    : (da is DateTime ? da.millisecondsSinceEpoch : 0);
+                final tb = db is Timestamp
+                    ? db.millisecondsSinceEpoch
+                    : (db is DateTime ? db.millisecondsSinceEpoch : 0);
+                return tb.compareTo(ta);
+              });
 
             if (filteredDocs.isEmpty) {
               return Container(
